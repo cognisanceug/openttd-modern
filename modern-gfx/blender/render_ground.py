@@ -62,7 +62,6 @@ import style as st  # noqa: E402
 
 ZOOMS = (1, 2, 4)
 COLOR_OVERSCAN = 1.06  # surface enlargement for the colour pass
-TEXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "render", "textures")
 
 # name: (first sprite, texture, scatter)
 KINDS = {
@@ -369,7 +368,7 @@ def render_coast_rocks(outdir, name, slope, seed, zoom):
 
 
 def ground_material(kind, piece=None):
-    tex = lambda name: os.path.join(TEXTURES, name + ".png")  # noqa: E731
+    tex = st.texture
     if kind == "water":
         return st.toon_material("water", image_path=tex("water"), params=st.FLAT)
     if kind == "river":
@@ -383,7 +382,7 @@ def ground_material(kind, piece=None):
     if kind == "canaldike":
         return st.bank_material(tex(f"canaldike{piece}"))
     if kind == "infra":
-        path = os.path.join(TEXTURES, "infra", f"{piece}.png")
+        path = tex(f"infra/{piece}")
         if piece in {n for n, _, overlay in infra_jobs() if overlay}:
             return st.bank_material(path)
         return st.toon_material("infra", image_path=path, params=st.GROUND, extension="EXTEND")

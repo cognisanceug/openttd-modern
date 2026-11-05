@@ -823,7 +823,7 @@ def render_overlay_ground(outdir, name, tex):
         zdir = os.path.join(outdir, f"z{zoom}")
         os.makedirs(zdir, exist_ok=True)
         scene = bk.new_scene(zoom, bk.GROUND_SIZE, bk.GROUND_SIZE, bk.GROUND_ANCHOR)
-        rg.build_tile(0, 1.0).data.materials.append(st.bank_material(os.path.join(bk.TEX, "airport", tex + ".png")))
+        rg.build_tile(0, 1.0).data.materials.append(st.bank_material(st.texture(f"airport/{tex}")))
         bk.render(scene, os.path.join(zdir, f"{name}_color.png"))
         scene = bk.new_scene(zoom, bk.GROUND_SIZE, bk.GROUND_SIZE, bk.GROUND_ANCHOR, samples=16)
         scene.cycles.filter_width = 0.01

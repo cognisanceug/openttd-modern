@@ -18,7 +18,8 @@ Written to <outdir>/<name>.png:
   cross<1382-1405>   level crossings for monorail (1382-1393) and maglev (1394-1405), as 1370-1381
   deck_<mono|mglv>_<X|Y>[_wood]  bridge deck surfaces for them
 
-Usage: make_transport_textures.py <render/textures> <outdir> [size]
+Usage: make_transport_textures.py <render/textures> <outdir> [size] [--grass <name>]
+  --grass toy_grass  draw over <name>.png and write only the guideway grounds and crossings, which show grass
 """
 
 import os
@@ -155,9 +156,9 @@ def guideway_region(n, kind, open_edge):
     return region
 
 
-def guideway_set(n, kind, first, grass, noise, outdir):
+def guideway_set(n, kind, first, grass, noise, outdir, on_grass_only=False):
     """The 32 sprites of the rail layout (1005-1036) for monorail or maglev, starting at first."""
-    singles = ("X", "Y", "U", "L", "R", "W")
+    singles = () if on_grass_only else ("X", "Y", "U", "L", "R", "W")
     for k, tr in enumerate(singles):
         mi.save(guideway_texture(n, None, [tr], kind, noise), os.path.join(outdir, f"{kind}{first + k}.png"))
     with_ground = {6: ["Y"], 7: ["X"], 8: ["U"], 9: ["L"], 10: ["R"], 11: ["W"], 12: ["X", "Y"],
@@ -188,24 +189,26 @@ def guideway_crossing(n, grass, kind, road_axis, barred, paved, noise):
 
 
 def main():
-    outdir = sys.argv[2]
-    n = int(sys.argv[3]) if len(sys.argv) > 3 else 1024
+    argv, grass_name = mi.grass_args(sys.argv)
+    outdir = argv[2]
+    n = int(argv[3]) if len(argv) > 3 else 1024
     os.makedirs(outdir, exist_ok=True)
     rng = np.random.default_rng(1005)
     speck = rng.random((n // 4, n // 4))
     noise = np.asarray(Image.fromarray((speck * 255).astype(np.uint8)).resize((n, n), Image.NEAREST), dtype=float) / 255
-    for k, arms in enumerate(DECK_ARMS):
+    on_grass_only = grass_name != "grass"
+    for k, arms in enumerate(() if on_grass_only else DECK_ARMS):
         mi.save(tram_deck_texture(n, arms, noise), os.path.join(outdir, f"tramdeck{107 + k}.png"))
-    for k in range(18):
+    for k in range(0 if on_grass_only else 18):
         mi.save(oneway_texture(n, "XY"[k % 6 // 3], k % 3), os.path.join(outdir, f"oneway{k}.png"))
-    grass = mi.load_tiled(os.path.join(sys.argv[1], "grass.png"), n)
+    grass = mi.load_tiled(os.path.join(argv[1], grass_name + ".png"), n)
     for kind, first, cross in (("mono", 1087, 1382), ("mglv", 1169, 1394)):
-        guideway_set(n, kind, first, grass, noise, outdir)
+        guideway_set(n, kind, first, grass, noise, outdir, on_grass_only)
         for k in range(12):
             axis = "Y" if k % 2 == 0 else "X"
             mi.save(guideway_crossing(n, grass, kind, axis, (k // 2) % 2 == 1, 4 <= k < 8, noise),
                     os.path.join(outdir, f"cross{cross + k}.png"))
-        for wood in (False, True):
+        for wood in () if on_grass_only else (False, True):
             for axis in ("X", "Y"):
                 ground = deck_ground(n, axis, wood, noise)
                 mi.save(guideway_texture(n, ground, [axis], kind, noise),
