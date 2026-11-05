@@ -16,8 +16,8 @@ Water kinds (output files are named after the sprite slot, not a base sprite):
   river    river0-3  first four sprites of the Action 5 CANAL block: river slopes
   coastrocks coastrock0-18  overlay rocks on water and coast (Action 5 OVERLAY_ROCKS,
            offset 95), in slope order; rendered without the tile, which only occludes
-  infra    rail1005-1036, road1313-1350, cross1370-1381: rails, roads and level
-           crossings from tools/make_infra_textures.py (render/textures/infra),
+  infra    rail1005-1036, road1313-1350, cross1370-1381, apron2634: rails, roads, level
+           crossings and concrete from tools/make_infra_textures.py (render/textures/infra),
            on the flat tile or the slope the sprite is drawn on; 1005-1010 are
            overlays without ground
   riverbank bank0-59 river edges for our own canal-feature definition: 12 pieces
@@ -79,6 +79,7 @@ def infra_jobs():
     for base in (1313, 1332):
         out += [(f"road{base + k}", ROAD_SLOPES.get(k, 0), False) for k in range(19)]
     out += [(f"cross{s}", 0, False) for s in range(1370, 1382)]
+    out += [("apron2634", 0, False)]
     return out
 BANK_SLOPES = (0, 6, 12, 3, 9)  # flat, SE, NE, SW, NW as in DrawRiverWater()
 WET_ROCK_COLORS = ((112, 112, 108), (128, 126, 120), (100, 104, 104))
