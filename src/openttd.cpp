@@ -430,6 +430,12 @@ struct AfterNewGRFScan : NewGRFScanCallback {
 		/* Make sure _settings is filled with _settings_newgame if we switch to a game directly */
 		if (_switch_mode != SwitchMode::None) MakeNewgameSettingsLive();
 
+		/* The title game was loaded before this scan, when no NewGRF for new games was known yet,
+		 * so a title scene with NewGRF graphics could not be used. Load it again now. */
+		if (_switch_mode == SwitchMode::None && _game_mode == GameMode::Menu && connection_string.empty() && !_grfconfig_newgame.empty()) {
+			LoadIntroGame();
+		}
+
 		if (_network_available && !connection_string.empty()) {
 			LoadIntroGame();
 			_switch_mode = SwitchMode::None;
