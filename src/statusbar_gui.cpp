@@ -17,6 +17,7 @@
 #include "company_base.h"
 #include "tilehighlight_func.h"
 #include "news_gui.h"
+#include "settings_type.h"
 #include "company_gui.h"
 #include "window_gui.h"
 #include "saveload/saveload_func.h"
@@ -105,6 +106,12 @@ struct StatusBarWindow : Window {
 
 	void DrawWidget(const Rect &r, WidgetID widget) const override
 	{
+		if (_settings_client.gui.modern_ui) {
+			/* Flat dark slate panels with a darker outline, so the light and coloured texts stand out. */
+			GfxFillRect(r, GetWindowColour(Colours::Grey, Shade::Darkest));
+			GfxFillRect(r.Shrink(WidgetDimensions::scaled.bevel), GetWindowColour(Colours::Grey, this->IsWidgetLowered(widget) ? Shade::Dark : Shade::Darker));
+		}
+
 		Rect tr = r.Shrink(WidgetDimensions::scaled.framerect, RectPadding::zero);
 		tr.top = CentreBounds(r.top, r.bottom, GetCharacterHeight(FontSize::Normal));
 		switch (widget) {

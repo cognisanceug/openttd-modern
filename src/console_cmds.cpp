@@ -1889,7 +1889,7 @@ static void ShowWindowByName(std::string_view name)
 	if (name == "build_tram") ShowBuildRoadToolbar(ROADTYPE_TRAM);
 	if (name == "build_water") ShowBuildDocksToolbar();
 	if (name == "build_air") ShowBuildAirToolbar();
-	if (name == "terraform") ShowTerraformToolbar();
+	if (name == "landscaping") ShowTerraformToolbar();
 	if (name == "finances") ShowCompanyFinances(_local_company);
 	if (name == "company") ShowCompany(_local_company);
 	if (name == "train_list") ShowVehicleListWindow(_local_company, VehicleType::Train);
@@ -1907,10 +1907,10 @@ static void ShowWindowByName(std::string_view name)
 static bool ConShowWindow(std::span<std::string_view> argv)
 {
 	static const std::initializer_list<std::string_view> names = {
-		"build_rail", "build_elrail", "build_mono", "build_maglev", "build_signals", "build_road", "build_tram", "build_water", "build_air", "terraform",
+		"build_rail", "build_elrail", "build_mono", "build_maglev", "build_signals", "build_road", "build_tram", "build_water", "build_air", "landscaping",
 		"town", "goto_town", "title_view", "finances", "company", "options", "train_list", "groups", "depot", "vehicle", "orders", "close_all"};
 	if (argv.size() != 2 || std::ranges::find(names, argv[1]) == names.end()) {
-		IConsolePrint(CC_HELP, "Open a window. Usage: 'show_window <name>'. Names: build_rail, build_elrail, build_mono, build_maglev, build_signals, build_road, build_tram, build_water, build_air, terraform,");
+		IConsolePrint(CC_HELP, "Open a window. Usage: 'show_window <name>'. Names: build_rail, build_elrail, build_mono, build_maglev, build_signals, build_road, build_tram, build_water, build_air, landscaping,");
 		IConsolePrint(CC_HELP, "  town, goto_town, title_view, finances, company, options, train_list, groups, depot, vehicle, orders, close_all. 'depot', 'vehicle' and 'orders' build a depot with a train if the company has none.");
 		return true;
 	}

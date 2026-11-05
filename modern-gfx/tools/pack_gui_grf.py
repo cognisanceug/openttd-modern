@@ -3,11 +3,13 @@
 A separate NewGRF from modern_terrain.grf, so the interface can be built and
 enabled on its own. It holds the title screen logo, one sprite per letter
 (tools/make_logo.py): T 4836, n 4839, p 4841, O 4842 in the base set, e and D
-in the OpenTTD GUI block (OTTD_GUI 12, 13); and the main toolbar icons
-(tools/make_icons.py), 20 x 20 px at 1x, see ICON_BLOCKS; and the other
-interface sprites (tools/make_gui_icons.py: construction toolbars, cursors,
-vehicle and depot buttons, window glyphs) in the sizes and offsets of the
-originals, grouped into runs of consecutive sprites, see gui_blocks().
+in the OpenTTD GUI block (OTTD_GUI 12, 13); the main toolbar and build menu
+icons (tools/make_icons.py), 20 x 20 px at 1x (station, bridge and airport
+40 x 20), see ICON_BLOCKS; and the other interface sprites
+(tools/make_gui_icons.py: monorail and maglev build icons, cursors, vehicle
+and depot buttons, window glyphs, cargo and status icons) in the sizes and
+offsets of the originals, grouped into runs of consecutive sprites, see
+gui_blocks().
 Every block gets an 8bpp fallback plus 32bpp sprites at 1x, 2x, 4x.
 
 Usage: pack_gui_grf.py <render-dir> <nml-dir>   (render-dir holds logo/, icons/ and gui_icons/)
@@ -53,6 +55,40 @@ ICON_BLOCKS = (
     ("icon_storybook", "replacenew {name}(OTTD_GUI, {file}, 169)", ["storybook"]),
     ("icon_goal", "replacenew {name}(OTTD_GUI, {file}, 171)", ["goal"]),
     ("icon_buildtrams", "replacenew {name}(OTTD_GUI, {file}, 179)", ["buildtrams"]),
+    # Build menus: rail, road, tram, water, airport, landscaping.
+    ("icon_buoy_terraform", "replace {name}(693, {file})", ["buoy", "terraform_up", "terraform_down"]),
+    ("icon_dynamite", "replace {name}(703, {file})", ["dynamite"]),
+    ("icon_remove", "replace {name}(714, {file})", ["remove"]),
+    ("icon_airport", "replace {name}(744, {file})", ["airport"]),
+    ("icon_ship_dock", "replace {name}(746, {file})", ["ship_dock"]),
+    ("icon_depot_stops", "replace {name}(748, {file})", ["ship_depot", "bus_station", "truck_bay"]),
+    ("icon_rail_tracks", "replace {name}(1251, {file})", ["rail_ns", "rail_x", "rail_ew", "rail_y"]),
+    ("icon_signals", "replace {name}(1291, {file})", ["signals"]),
+    ("icon_depots", "replace {name}(1294, {file})", ["depot_rail", "road_depot"]),
+    ("icon_railstation", "replace {name}(1298, {file})", ["railstation"]),
+    ("icon_roads", "replace {name}(1309, {file})", ["road_y", "road_x"]),
+    ("icon_tunnels", "replace {name}(2429, {file})", ["road_tunnel", "tunnel_rail"]),
+    ("icon_bridge", "replace {name}(2594, {file})", ["bridge"]),
+    ("icon_rocks_desert", "replace {name}(4084, {file})", ["rocks", "desert"]),
+    ("icon_buy_land", "replace {name}(4791, {file})", ["buy_land"]),
+    ("icon_autorail", "replacenew {name}(OTTD_GUI, {file}, 53)", ["autorail"]),
+    ("icon_convert_rail", "replacenew {name}(OTTD_GUI, {file}, 55)", ["convert_rail"]),
+    ("icon_autoelrail", "replacenew {name}(OTTD_GUI, {file}, 57)", ["autoelrail"]),
+    ("icon_convert_elrail", "replacenew {name}(OTTD_GUI, {file}, 59)", ["convert_elrail"]),
+    ("icon_depot_elrail", "replacenew {name}(OTTD_GUI, {file}, 61)", ["depot_elrail"]),
+    ("icon_waypoint", "replacenew {name}(OTTD_GUI, {file}, 76)", ["waypoint"]),
+    ("icon_autoroad", "replacenew {name}(OTTD_GUI, {file}, 82)", ["autoroad"]),
+    ("icon_autotram", "replacenew {name}(OTTD_GUI, {file}, 84)", ["autotram"]),
+    ("icon_canal", "replacenew {name}(OTTD_GUI, {file}, 88)", ["canal"]),
+    ("icon_level_land", "replacenew {name}(OTTD_GUI, {file}, 91)", ["level_land"]),
+    ("icon_one_way_signal_convert_river", "replacenew {name}(OTTD_GUI, {file}, 134)",
+     ["one_way", "signal_convert", "river"]),
+    ("icon_aqueduct", "replacenew {name}(OTTD_GUI, {file}, 145)", ["aqueduct"]),
+    ("icon_convert_road", "replacenew {name}(OTTD_GUI, {file}, 180)", ["convert_road"]),
+    ("icon_elrail_tracks", "replacenew {name}(CATENARY, {file}, 36)", ["elrail_ns", "elrail_x", "elrail_ew", "elrail_y"]),
+    ("icon_tunnel_elrail", "replacenew {name}(CATENARY, {file}, 44)", ["tunnel_elrail"]),
+    ("icon_tram_tracks", "replacenew {name}(TRAMWAY, {file}, 0)", ["tram_y", "tram_x"]),
+    ("icon_lock", "replacenew {name}(CANALS, {file}, 64)", ["lock"]),
 )
 
 
@@ -130,7 +166,7 @@ def main():
     open(os.path.join(lang_dir, "english.lng"), "w").write(
         "##grflangid 0x01\n"
         "STR_GUI_GRF_NAME :Modern Interface\n"
-        "STR_GUI_GRF_DESC :Interface graphics matching Modern Terrain: the title screen logo, toolbar and window icons and cursors. Licence: GPL v2.\n"
+        "STR_GUI_GRF_DESC :Interface graphics matching Modern Terrain: the title screen logo, toolbar, build menu and window icons and cursors. Licence: GPL v2.\n"
     )
     nmlc = os.path.join(os.path.dirname(sys.executable), "nmlc")
     subprocess.run([nmlc, "-c", "--lang-dir", "lang_gui", "--grf", "modern_gui.grf", "modern_gui.nml"],

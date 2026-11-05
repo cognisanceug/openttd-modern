@@ -8,7 +8,9 @@ by TileHash bits 0-2 through _landscape_clear_sprites_rough, farm fields by a
 per-field stage.
 
 Usage: preview_tiling.py <render/ground> <ref/ground> <out.png> <layout> [zoom] [tiles]
-  layout: rocky | rough | bare | grass13 | grass23 | grass | mixed | fields
+  layout: rocky | rough | bare | grass13 | grass23 | grass | mixed | regrowth | fields
+  regrowth: bands of bare soil, 1/3, 2/3 and full grass, with a quarter of the
+            tiles at a random stage, as land grows back after clearing
   zoom 1, 2 or 4 (default 4); tiles per side (default 12)
 """
 
@@ -43,6 +45,12 @@ def pick(layout, tx, ty, n):
         return ROUGH_TABLE[tile_hash(tx, ty) & 7]
     if layout in FIRST:
         return FIRST[layout]
+    if layout == "regrowth":
+        stages = (3924, 3943, 3962, 3981, 3962, 3943)
+        r = random.Random(tx * 1000 + ty)
+        if r.random() < 0.25:
+            return r.choice(stages[:4])
+        return stages[(tx + ty) // 3 % len(stages)]
     if layout == "fields":
         # 3x3 fields, each with its own growth stage.
         return 4126 + 19 * (((tx // 4) * 5 + (ty // 4) * 3) % 9)

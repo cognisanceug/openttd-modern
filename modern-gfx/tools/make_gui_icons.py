@@ -1,8 +1,10 @@
 """Draw the remaining interface sprites in the style of the main toolbar icons.
 
-Covers the construction toolbars (rail, road, tram, water, air, landscaping)
-and their cursors, the vehicle, depot and group buttons, the window widget
-glyphs and a few small status icons. make_icons.py draws the main toolbar.
+make_icons.py draws the main toolbar and the build menu icons of rail,
+electric rail, road, tram, water, airport and landscaping. This covers the
+rest: monorail and maglev build icons, the cursors of all build tools (they
+reuse the make_icons drawings, see MAKE_ICONS), the vehicle, depot and group
+buttons, the window widget glyphs, cargo icons and small status icons.
 
 Every sprite keeps the size and offset of the OpenGFX original, so layouts
 and cursor hotspots do not move. Drawing units are 5 per pixel at 1x, the
@@ -154,15 +156,6 @@ def track(c, a, b, kind, s=1.0):
             band(c, *offset(a, b, d), 4.5 * s, RAIL)
 
 
-def iso_tile(c, cx, cy, hw, fill, depth=0, side=None):
-    """An isometric tile (diamond) centred on (cx, cy), half width hw, optionally with a thickness."""
-    hh = hw / 2
-    if depth:
-        c.poly([(cx - hw, cy), (cx, cy + hh), (cx + hw, cy), (cx + hw, cy + depth), (cx, cy + hh + depth),
-                (cx - hw, cy + depth)], side or SLATE)
-    c.poly([(cx, cy - hh), (cx + hw, cy), (cx, cy + hh), (cx - hw, cy)], fill)
-
-
 def iso_box(c, cx, cy, hw, h, top, left, right):
     """An isometric block standing on the diamond at (cx, cy) with height h."""
     hh = hw / 2
@@ -210,26 +203,6 @@ def badge_pencil(c, cx, cy, r=13, col=STEEL):
     d = r * 0.5
     c.line([(cx - d, cy + d), (cx + d, cy - d)], CREAM, r * 0.32)
     c.poly([(cx - d - 2, cy + d + 2), (cx - d + 2.5, cy + d - 1), (cx - d + 1, cy + d + 2.5)], CREAM)
-
-
-def bulldozer(c):
-    c.poly([(8, 64), (14, 36), (30, 36), (30, 22), (62, 22), (66, 44), (74, 44), (74, 64)], AMBER)
-    c.rect(36, 28, 56, 42, STEEL, 2)
-    c.rect(10, 62, 76, 84, SLATE, 10)
-    for x in (20, 43, 66):
-        c.circle(x, 73, 6, RAIL)
-    c.poly([(76, 40), (88, 40), (96, 84), (80, 84)], CREAM)
-
-
-def bomb(c):
-    c.circle(44, 60, 30, SLATE)
-    c.circle(34, 50, 8, (96, 104, 118, 255))
-    c.rect(52, 24, 66, 36, SLATE, 2)
-    c.line([(60, 26), (68, 14), (80, 10)], WOOD, 4)
-    for a in range(0, 360, 45):
-        r = math.radians(a)
-        c.line([(84, 8), (84 + 10 * math.cos(r), 8 + 10 * math.sin(r))], AMBER, 3)
-    c.circle(84, 8, 4, CREAM)
 
 
 def signal_post(c, x, y, h, lit, semaphore=False, head=None):
@@ -328,190 +301,6 @@ def tunnel(kind):
     return draw
 
 
-def rail_station(c):
-    # Platform with a roof and a train at it, in a 40 x 20 px box.
-    c.rect(4, 66, 196, 80, CONCRETE, 2)
-    track(c, (2, 90), (198, 90), "rail", 0.55)
-    c.rect(20, 40, 24, 66, SLATE)
-    c.rect(176, 40, 180, 66, SLATE)
-    c.poly([(8, 30), (192, 30), (184, 42), (16, 42)], STEEL)
-    c.rect(60, 46, 150, 86, BRICK, 8)
-    c.rect(68, 52, 142, 64, CREAM, 2)
-    c.circle(78, 86, 5, SLATE)
-    c.circle(132, 86, 5, SLATE)
-
-
-def rail_signals(c):
-    # Two light signals, red and green, 19 x 17 px.
-    signal_post(c, 26, 84, 82, "red")
-    signal_post(c, 70, 84, 82, "green")
-
-
-def waypoint(c):
-    track(c, (6, 64), (84, 64), "rail", 0.8)
-    c.rect(38, 10, 46, 56, SLATE)
-    c.poly([(46, 10), (80, 18), (46, 28)], AMBER)
-
-
-def bridge(c):
-    # Suspension bridge, 43 x 20 px.
-    W = 215
-    c.rect(0, 62, W, 70, BRICK)
-    for x in (52, 160):
-        c.rect(x - 4, 14, x + 4, 92, SLATE)
-    c.line([(0, 22), (30, 52), (52, 16)], CREAM, 3)
-    c.line([(52, 16), (106, 56), (160, 16)], CREAM, 3)
-    c.line([(160, 16), (186, 52), (W, 22)], CREAM, 3)
-    for x in range(64, 156, 12):
-        y = 16 + 40 * (1 - ((x - 106) / 54) ** 2)
-        c.line([(x, y), (x, 62)], CREAM, 1.5)
-    c.line([(0, 90), (40, 84), (80, 92), (120, 84), (170, 92), (W, 86)], WATER, 6)
-
-
-def build_canal(c):
-    iso_tile(c, 50, 54, 46, STONE, 10, ROCK)
-    iso_tile(c, 50, 54, 34, WATER)
-    c.line([(28, 54), (40, 48), (52, 54), (64, 48)], CREAM, 3)
-
-
-def build_river(c):
-    c.poly([(0, 0), (100, 0), (100, 100), (0, 100)], (0, 0, 0, 0))
-    pts = [(16, 6), (44, 22), (30, 46), (62, 60), (48, 84), (70, 98)]
-    c.line(pts, SAGE, 30)
-    c.line(pts, WATER, 18)
-    c.line([(40, 26), (32, 40)], CREAM, 3)
-
-
-def build_lock(c):
-    # Side view: a high and a low basin with the gate between them.
-    c.rect(4, 26, 96, 94, STONE, 4)
-    c.rect(12, 34, 46, 86, WATER)
-    c.rect(54, 56, 88, 86, WATER)
-    c.rect(12, 34, 46, 40, CREAM)
-    c.rect(54, 56, 88, 62, CREAM)
-    c.rect(44, 14, 56, 86, WOOD, 2)
-    c.rect(40, 10, 60, 18, SLATE, 2)
-
-
-def aqueduct(c):
-    # 20 x 14 px.
-    c.rect(4, 18, 96, 34, STONE, 2)
-    c.rect(8, 20, 92, 28, WATER)
-    for x in (10, 40, 70):
-        c.rect(x, 34, x + 20, 70, STONE)
-        c.ellipse(x + 20, 38, x + 40, 76, fill=(0, 0, 0, 0))
-    c.punch(lambda h: [h.ellipse(x + 2, 40, x + 28, 90, fill=CREAM) for x in (22, 52)])
-    c.rect(0, 34, 100, 38, STONE)
-
-
-def dock(c):
-    # 20 x 18 px at +0+2: quay, crane, water.
-    iso_tile(c, 50, 64, 46, WATER)
-    c.poly([(4, 64), (50, 40), (96, 64), (50, 64)], CONCRETE)
-    c.rect(56, 10, 62, 52, AMBER)
-    c.line([(59, 12), (90, 22)], AMBER, 4)
-    c.line([(88, 22), (88, 40)], SLATE, 2)
-    c.rect(20, 40, 44, 56, BRICK, 2)
-
-
-def ship_depot(c):
-    c.rect(0, 72, 100, 100, WATER)
-    c.poly([(10, 44), (50, 14), (90, 44)], STEEL)
-    c.rect(14, 42, 86, 78, CREAM, 2)
-    c.rect(28, 50, 72, 78, WATER_DEEP, 4)
-    c.line([(2, 88), (18, 82), (34, 88), (50, 82), (66, 88), (82, 82), (98, 88)], CREAM, 3)
-
-
-def airport(c):
-    # 39 x 20 px at +1+0: terminal with a tower and a runway.
-    band(c, (10, 92), (190, 52), 22, ASPHALT)
-    for t in range(4):
-        x = 40 + t * 36
-        band(c, (x, 92 - (x - 10) * 0.222 - 0), (x + 16, 92 - (x + 6) * 0.222), 3, CREAM)
-    c.rect(20, 34, 96, 70, CONCRETE, 3)
-    c.rect(24, 40, 92, 48, STEEL, 1)
-    c.rect(100, 12, 110, 60, CONCRETE)
-    c.rect(94, 6, 116, 18, STEEL, 2)
-    with c.at(120, 0, 0.6):
-        mi.plane(c, CREAM)
-
-
-def bus_station(c):
-    iso_tile(c, 50, 60, 48, CONCRETE, 8, (150, 152, 156, 255))
-    c.poly([(16, 50), (50, 32), (84, 50), (50, 68)], ASPHALT)
-    c.rect(18, 20, 56, 40, STEEL, 6)
-    c.rect(22, 24, 52, 32, CREAM, 2)
-    c.rect(64, 14, 68, 56, SLATE)
-    c.circle(66, 14, 8, AMBER)
-
-
-def truck_bay(c):
-    iso_tile(c, 50, 60, 48, CONCRETE, 8, (150, 152, 156, 255))
-    c.poly([(16, 50), (50, 32), (84, 50), (50, 68)], ASPHALT)
-    c.rect(14, 22, 52, 46, CREAM, 3)
-    c.poly([(54, 28), (68, 28), (78, 38), (78, 46), (54, 46)], AMBER)
-    c.circle(26, 48, 5, SLATE)
-    c.circle(68, 48, 5, SLATE)
-
-
-def one_way(c):
-    c.rect(10, 18, 90, 64, STEEL, 8)
-    c.poly([(20, 36), (58, 36), (58, 26), (80, 41), (58, 56), (58, 46), (20, 46)], CREAM)
-    c.rect(46, 64, 54, 92, SLATE)
-
-
-def signal_convert(c):
-    signal_post(c, 30, 88, 70, "red")
-    c.circle(66, 36, 24, AMBER)
-    cycle(c, 66, 36, 12, CREAM, 5)
-
-
-def raise_land(c, up=True):
-    # 20 x 14 px at +0+4: a grass slope with an arrow.
-    c.poly([(2, 48), (30, 34), (50, 44), (22, 58)], SAGE)
-    c.poly([(22, 58), (50, 44), (50, 52), (22, 66)], (96, 128, 80, 255))
-    tip, base = (74, 2), (74, 68)
-    if not up:
-        tip, base = base, tip
-    d = 1 if up else -1
-    c.line([base, (tip[0], tip[1] + 20 * d)], AMBER, 14)
-    c.poly([(tip[0] - 22, tip[1] + 26 * d), (tip[0] + 22, tip[1] + 26 * d), tip], AMBER)
-
-
-def level_land(c):
-    # 20 x 14 px at +0+4.
-    iso_tile(c, 50, 44, 46, SAGE, 12, (96, 128, 80, 255))
-    c.rect(26, 6, 74, 14, AMBER, 3)
-    c.line([(50, 14), (50, 34)], AMBER, 6)
-
-
-def buy_land(c):
-    # 12 x 16 px at +4+2: a flag on a pole.
-    c.rect(10, 4, 18, 78, SLATE, 2)
-    c.poly([(18, 6), (58, 12), (52, 24), (58, 36), (18, 34)], STEEL)
-    c.rect(2, 72, 28, 80, SLATE, 3)
-
-
-def rocks(c):
-    iso_tile(c, 50, 64, 50, SAGE, 10, (96, 128, 80, 255))
-    c.poly([(30, 50), (40, 22), (62, 18), (70, 46), (54, 58)], ROCK)
-    c.poly([(40, 22), (62, 18), (56, 36)], STONE)
-    c.poly([(16, 64), (26, 40), (44, 36), (52, 58), (40, 70)], ROCK)
-    c.poly([(26, 40), (44, 36), (40, 52)], STONE)
-    c.poly([(52, 66), (62, 44), (82, 48), (86, 68), (70, 74)], ROCK)
-    c.poly([(62, 44), (82, 48), (72, 58)], STONE)
-
-
-def lighthouse(c):
-    # 9 x 20 px at +5+0.
-    c.poly([(10, 92), (16, 26), (30, 26), (36, 92)], CREAM)
-    for y in (40, 62, 84):
-        c.poly([(16 - (y - 26) * 0.09 * 0 - 2 + (92 - y) * 0.09, y - 6), (30 + 2 - (92 - y) * 0.09, y - 6),
-                (31 - (92 - y) * 0.08, y), (15 + (92 - y) * 0.08, y)], BRICK)
-    c.rect(12, 14, 34, 26, AMBER, 2)
-    c.poly([(10, 14), (23, 2), (36, 14)], BRICK)
-
-
 # ---------------------------------------------------------------- vehicle and depot windows
 
 VEHICLES = {"train": mi.trainlist, "road": mi.trucklist, "ship": mi.shiplist, "air": mi.planelist}
@@ -542,9 +331,11 @@ def replace(vt):
 
 def clone(vt):
     def draw(c):
-        vehicle(c, vt, 16, -4, 0.86)
+        # A faded copy behind the vehicle, filling the box (13..16 px wide, 15..16 px high).
+        s = min(c.W, c.H) / 100 * 0.86
+        vehicle(c, vt, c.W - 100 * s + 2, -2, s)
         c.im.putalpha(c.im.getchannel("A").point(lambda a: a * 140 // 255))
-        vehicle(c, vt, -4, 16, 0.9)
+        vehicle(c, vt, -6, c.H - 100 * s + 2, s)
     return draw
 
 
@@ -821,7 +612,7 @@ def cursor(icon, frac=0.74):
 def cursor_box(icon, w, h):
     """Like cursor(), for icons drawn in a box other than 20 x 20 px."""
     def draw(c):
-        s = min((c.W - 30) / (w * U), (c.H - 40) / (h * U))
+        s = min((c.W - 16) / (w * U), (c.H - 22) / (h * U))
         with c.at(c.W - w * U * s - 2, c.H - h * U * s - 2, s):
             icon(c)
         pointer(c, 0, 0)
@@ -855,19 +646,16 @@ def road_cursor(kind, direction, tip=(0, 0)):
 def demolish_frame(k):
     def draw(c):
         sc = min(c.W, c.H) * 0.78 / 100
-        with c.at(c.W - 100 * sc, c.H - 100 * sc, sc):
-            bomb(c)
-            for a in range(0, 360, 60):
-                r = math.radians(a + k * 30)
-                c.line([(84, 8), (84 + (8 + k * 3) * math.cos(r), 8 + (8 + k * 3) * math.sin(r))], AMBER, 3)
+        with c.at(c.W - 100 * sc, c.H - 100 * sc + (k % 2) * 3, sc):
+            their("dynamite")[0](c)
         pointer(c, 0, 0)
     return draw
 
 
 def land_frame(up, k):
     def draw(c):
-        with c.at(c.W - 104, c.H - 76 - k * 4 * (1 if up else -1) + (8 if not up else 0), 1.04):
-            raise_land(c, up)
+        with c.at(c.W - 96, c.H - 96 - k * 4 * (1 if up else -1) + (8 if not up else 0), 0.92):
+            their("terraform_up" if up else "terraform_down")[0](c)
         pointer(c, 0, 0)
     return draw
 
@@ -1096,6 +884,46 @@ def sq(draw):
     return fitted
 
 
+# ---------------------------------------------------------------- build menu icons of make_icons.py
+
+# Toolbar sprites that make_icons.py draws (my key -> its icon name). They are not packed from here;
+# the cursors of these tools show the same drawing.
+MAKE_ICONS = {
+    "terraform_up": "terraform_up", "terraform_down": "terraform_down", "dynamite": "dynamite",
+    "remove": "remove", "airport": "airport", "dock": "ship_dock", "ship_depot": "ship_depot",
+    "bus_station": "bus_station", "truck_bay": "truck_bay", "rail_ns": "rail_ns", "rail_x": "rail_x",
+    "rail_ew": "rail_ew", "rail_y": "rail_y", "rail_signals": "signals", "depot_rail": "depot_rail",
+    "road_depot": "road_depot", "rail_station": "railstation", "road_y": "road_y", "road_x": "road_x",
+    "tunnel_road": "road_tunnel", "tunnel_rail": "tunnel_rail", "bridge": "bridge", "rocks": "rocks",
+    "desert": "desert", "buy_land": "buy_land", "lock": "lock", "elrail_ns": "elrail_ns",
+    "elrail_x": "elrail_x", "elrail_ew": "elrail_ew", "elrail_y": "elrail_y", "tunnel_elrail": "tunnel_elrail",
+    "auto_rail": "autorail", "conv_rail": "convert_rail", "auto_elrail": "autoelrail",
+    "conv_elrail": "convert_elrail", "depot_elrail": "depot_elrail", "waypoint": "waypoint",
+    "autoroad": "autoroad", "autotram": "autotram", "canal": "canal", "level_land": "level_land",
+    "aqueduct": "aqueduct", "conv_road": "convert_road", "tram_y": "tram_y", "tram_x": "tram_x",
+    "one_way": "one_way", "signal_convert": "signal_convert", "river": "river",
+}
+
+
+def their(key):
+    """The make_icons.py drawing for a toolbar key, as (draw, w, h) in px at 1x; draw fills its w x h box."""
+    name = MAKE_ICONS[key]
+    w = mi.WIDE.get(name, mi.BOX)
+
+    def draw(c):
+        # make_icons draws on its own canvas (100 units high); paste it scaled into the current frame.
+        x0, y0 = c.xy(0, 0)
+        h = max(1, round(c.len(100)))
+        mc = mi.Canvas(h, 100 * w / mi.BOX)
+        mi.ICONS[name](mc)
+        c.im.alpha_composite(mc.im, (round(x0), round(y0)))
+    return draw, w, mi.BOX
+
+
+def their_cursor(key):
+    return cursor_box(*their(key))
+
+
 # ---------------------------------------------------------------- the sprite table
 
 # key: (block, index, (w, h, xoffs, yoffs), draw, shadow)
@@ -1141,91 +969,61 @@ for name, auto, depot, conv, sizes in (
         ("mono", 63, 67, 65, ((20, 11, 0, 7), (20, 20, 0, 0), (20, 20, 0, 0))),
         ("maglev", 69, 73, 71, ((20, 13, 0, 5), (20, 20, 0, 0), (20, 20, 0, 0)))):
     add(f"auto_{name}", "gui", auto, sizes[0], autorail(name, sizes[0][1] * U))
-    add(f"cur_auto_{name}", "gui", auto + 1, (26, 28, 0, 0), cursor_box(autorail(name, sizes[0][1] * U), *sizes[0][:2]))
+    add(f"cur_auto_{name}", "gui", auto + 1, (26, 28, 0, 0), their_cursor(f"auto_{name}") if f"auto_{name}" in MAKE_ICONS
+        else cursor_box(autorail(name, sizes[0][1] * U), *sizes[0][:2]))
     add(f"conv_{name}", "gui", conv, (20, 16, 0, 0), convert(name, 80))
     add(f"cur_conv_{name}", "gui", conv + 1, ({"rail": 29, "elrail": 28, "mono": 32, "maglev": 28}[name], 28, 0, 0),
-        cursor(convert(name)))
+        their_cursor(f"conv_{name}") if f"conv_{name}" in MAKE_ICONS else cursor(convert(name)))
     dep_block = "base" if name == "rail" else "gui"
     add(f"depot_{name}", dep_block, depot, (20, 20, 0, 0), rail_depot(name))
     cur_depot = {"rail": 1296, "elrail": 62, "mono": 68, "maglev": 74}[name]
-    add(f"cur_depot_{name}", dep_block, cur_depot, (32, 32, 0, 0), cursor(rail_depot(name)))
+    add(f"cur_depot_{name}", dep_block, cur_depot, (32, 32, 0, 0), their_cursor(f"depot_{name}") if f"depot_{name}" in MAKE_ICONS else cursor(rail_depot(name)))
 
 for name, img, cur, block in (("rail", 2430, 2434, "base"), ("mono", 2431, 2435, "base"),
                               ("maglev", 2432, 2436, "base"), ("elrail", 44, 45, "catenary"),
                               ("road", 2429, 2433, "base")):
     add(f"tunnel_{name}", block, img, (20, 20, 0, 0), tunnel(name))
-    add(f"cur_tunnel_{name}", block, cur, (27, 30, 0, 0), cursor(tunnel(name)))
+    add(f"cur_tunnel_{name}", block, cur, (27, 30, 0, 0), their_cursor(f"tunnel_{name}") if f"tunnel_{name}" in MAKE_ICONS else cursor(tunnel(name)))
 
-add("rail_station", "base", 1298, (40, 20, 0, 0), rail_station)
-add("cur_rail_station", "base", 1300, (29, 32, 0, 0), cursor_box(rail_station, 40, 20))
-add("rail_signals", "base", 1291, (19, 17, 0, 1), rail_signals)
+add("cur_rail_station", "base", 1300, (29, 32, 0, 0), their_cursor("rail_station"))
 add("cur_signals_0", "base", 1292, (28, 30, 0, 0), signal_cursor(0))
 add("cur_signals_1", "base", 1293, (28, 30, 0, 0), signal_cursor(1))
-add("signal_convert", "gui", 135, (20, 20, 0, 0), signal_convert)
-add("waypoint", "gui", 76, (18, 16, 1, 3), waypoint)
-add("cur_waypoint", "gui", 77, (32, 32, 0, 0), cursor_box(waypoint, 18, 16))
-add("bridge", "base", 2594, (43, 20, 0, 0), bridge)
-add("cur_bridge", "base", 2593, (45, 32, 0, 0), cursor_box(bridge, 43, 20))
-add("remove", "base", 714, (20, 18, 0, 1), bulldozer)
-add("dynamite", "base", 703, (20, 20, 0, 0), bomb)
+add("cur_waypoint", "gui", 77, (32, 32, 0, 0), their_cursor("waypoint"))
+add("cur_bridge", "base", 2593, (45, 32, 0, 0), their_cursor("bridge"))
 for k, sid in enumerate(range(704, 708)):
     add(f"cur_demolish_{k}", "base", sid, ((27, 26, 27, 28)[k], 29, 0, 0), demolish_frame(k))
 
 # Road and tram toolbar.
-add("road_y", "base", 1309, (20, 13, 0, 5), rail_piece("road", "y", 20, 13))
-add("road_x", "base", 1310, (20, 13, 0, 5), rail_piece("road", "x", 20, 13))
 add("cur_road_x", "base", 1311, (27, 28, 0, 0), road_cursor("road", "x"))
 add("cur_road_y", "base", 1312, (27, 28, 0, 0), road_cursor("road", "y"))
-add("autoroad", "gui", 82, (20, 14, 0, 4), autorail("road", 70))
-add("cur_autoroad", "gui", 83, (27, 29, 0, 0), cursor_box(autorail("road", 70), 20, 14))
-add("tram_y", "tramway", 0, (20, 13, 0, 4), rail_piece("tram", "y", 20, 13))
-add("tram_x", "tramway", 1, (20, 13, 0, 4), rail_piece("tram", "x", 20, 13))
+add("cur_autoroad", "gui", 83, (27, 29, 0, 0), their_cursor("autoroad"))
 add("cur_tram_x", "tramway", 2, (42, 32, -15, -7), tram_cursor("x"))
 add("cur_tram_y", "tramway", 3, (42, 31, -13, -7), tram_cursor("y"))
-add("autotram", "gui", 84, (20, 14, 0, 4), autorail("tram", 70))
-add("cur_autotram", "gui", 85, (27, 28, 0, 0), cursor_box(autorail("tram", 70), 20, 14))
-add("road_depot", "base", 1295, (20, 20, 0, 0), rail_depot("road"))
-add("cur_road_depot", "base", 1297, (32, 32, 0, 0), cursor(rail_depot("road")))
-add("bus_station", "base", 749, (20, 19, 0, 1), bus_station)
-add("truck_bay", "base", 750, (20, 20, 0, 0), truck_bay)
-add("cur_bus_station", "base", 2725, (32, 32, 0, 0), cursor(bus_station))
-add("cur_truck_bay", "base", 2726, (32, 32, 0, 0), cursor(truck_bay))
-add("one_way", "gui", 134, (20, 18, 0, 2), one_way)
-add("conv_road", "gui", 180, (20, 18, 0, 0), convert("road", 90))
-add("cur_conv_road", "gui", 181, (29, 29, 0, 0), cursor(convert("road")))
+add("cur_autotram", "gui", 85, (27, 28, 0, 0), their_cursor("autotram"))
+add("cur_road_depot", "base", 1297, (32, 32, 0, 0), their_cursor("road_depot"))
+add("cur_bus_station", "base", 2725, (32, 32, 0, 0), their_cursor("bus_station"))
+add("cur_truck_bay", "base", 2726, (32, 32, 0, 0), their_cursor("truck_bay"))
+add("cur_conv_road", "gui", 181, (29, 29, 0, 0), their_cursor("conv_road"))
 add("conv_tram", "gui", 182, (20, 18, 0, 0), convert("tram", 90))
 add("cur_conv_tram", "gui", 183, (29, 28, 0, 0), cursor(convert("tram")))
 
 # Waterways and air.
-add("canal", "gui", 88, (20, 18, 0, 1), build_canal)
-add("cur_canal", "gui", 89, (32, 32, 0, 0), cursor(build_canal))
-add("river", "gui", 136, (20, 20, 0, 0), build_river)
-add("cur_river", "gui", 137, (27, 32, 0, 0), cursor(build_river))
-add("lock", "canals", 64, (20, 20, 0, 0), build_lock)
-add("cur_lock", "gui", 87, (32, 32, 0, 0), cursor(build_lock))
-add("aqueduct", "gui", 145, (20, 14, 0, 6), aqueduct)
-add("cur_aqueduct", "gui", 146, (27, 32, 0, 0), cursor_box(aqueduct, 20, 14))
-add("dock", "base", 746, (20, 18, 0, 2), dock)
-add("cur_dock", "base", 3668, (32, 32, 0, 0), cursor_box(dock, 20, 18))
-add("ship_depot", "base", 748, (20, 20, 0, 0), ship_depot)
-add("cur_ship_depot", "base", 721, (32, 32, 0, 0), cursor(ship_depot))
-add("airport", "base", 744, (39, 20, 1, 0), airport)
-add("cur_airport", "base", 2724, (32, 32, 0, 0), cursor_box(airport, 39, 20))
+add("cur_canal", "gui", 89, (32, 32, 0, 0), their_cursor("canal"))
+add("cur_river", "gui", 137, (27, 32, 0, 0), their_cursor("river"))
+add("cur_lock", "gui", 87, (32, 32, 0, 0), their_cursor("lock"))
+add("cur_aqueduct", "gui", 146, (27, 32, 0, 0), their_cursor("aqueduct"))
+add("cur_dock", "base", 3668, (32, 32, 0, 0), their_cursor("dock"))
+add("cur_ship_depot", "base", 721, (32, 32, 0, 0), their_cursor("ship_depot"))
+add("cur_airport", "base", 2724, (32, 32, 0, 0), their_cursor("airport"))
 
 # Landscaping.
-add("terraform_up", "base", 694, (20, 14, 0, 4), lambda c: raise_land(c, True))
-add("terraform_down", "base", 695, (20, 14, 0, 4), lambda c: raise_land(c, False))
 for k in range(3):
     add(f"cur_raise_{k}", "base", 696 + k, (29, 24, 0, 0), land_frame(True, k))
     add(f"cur_lower_{k}", "base", 699 + k, (29, 24, 0, 0), land_frame(False, k))
-add("level_land", "gui", 91, (20, 14, 0, 4), level_land)
-add("cur_level_land", "gui", 92, (29, 24, 0, 0), cursor_box(level_land, 20, 14))
-add("buy_land", "base", 4791, (12, 16, 4, 2), buy_land)
-add("cur_buy_land", "base", 4792, (20, 28, 0, 0), cursor_box(buy_land, 12, 16))
-add("rocks", "base", 4084, (20, 20, 0, 0), rocks)
-add("cur_rocks", "base", 4087, (26, 32, 0, 0), cursor(rocks))
-add("lighthouse", "base", 4085, (9, 20, 5, 0), lighthouse)
-add("cur_lighthouse", "base", 4088, (19, 32, 0, 0), cursor_box(lighthouse, 9, 20))
+add("cur_level_land", "gui", 92, (29, 24, 0, 0), their_cursor("level_land"))
+add("cur_buy_land", "base", 4792, (20, 28, 0, 0), their_cursor("buy_land"))
+add("cur_rocks", "base", 4087, (26, 32, 0, 0), their_cursor("rocks"))
+add("cur_desert", "base", 4088, (19, 32, 0, 0), their_cursor("desert"))
 add("cur_transmitter", "base", 4089, (28, 32, 0, 0), transmitter_cursor)
 add("cur_query", "base", 719, (26, 31, 0, 0), query_cursor)
 add("cur_hq", "base", 720, (32, 32, 0, 0), hq_cursor)
@@ -1242,7 +1040,7 @@ for k, vt in enumerate(VT):
     add(f"sell_{vt}", "gui", 93 + k, (20, 20, 0, 0), sell(vt))
     add(f"sell_all_{vt}", "gui", 97 + k, (20, 20, 0, 0), sell(vt, all_=True))
     add(f"replace_{vt}", "gui", 101 + k, (20, 20, 0, 0), replace(vt))
-    add(f"clone_{vt}", "gui", 106 + k, ((13, 16, 0, 0), (14, 15, 0, 1), (16, 16, 0, 0), (15, 15, 0, 1))[k], sq(clone(vt)))
+    add(f"clone_{vt}", "gui", 106 + k, ((13, 16, 0, 0), (14, 15, 0, 1), (16, 16, 0, 0), (15, 15, 0, 1))[k], clone(vt))
     add(f"cur_clone_{vt}", "gui", 110 + k, ((22, 29), (23, 29), (25, 29), (24, 29))[k] + (0, 0),
         cursor(clone(vt)))
     odd = (19, 19, 0, 1) if k % 2 else (19, 20, 0, 0)
@@ -1332,6 +1130,9 @@ add("player_self", "gui", 189, (7, 9, 2, 1), lambda c: (c.circle(17.5, 12, 9, CR
 add("player_host", "gui", 190, (9, 7, 1, 3), lambda c: c.poly(
     [(2, 34), (2, 6), (13, 18), (22.5, 2), (32, 18), (43, 6), (43, 34)], CREAM), False)
 add("extra_menu", "gui", 191, (2, 8, 3, 1), lambda c: [c.circle(5, y, 4.2, INK) for y in (6, 20, 34)], False)
+
+for key in MAKE_ICONS:
+    SPRITES.pop(key, None)
 
 
 def render(key, zoom):
