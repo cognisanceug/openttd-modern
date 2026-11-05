@@ -67,6 +67,18 @@ PALETTE = {
     # ground decals
     "paving": ((202, 198, 188), G), "asphalt": ((104, 108, 112), G), "marking": ((236, 234, 226), G),
     "path": ((212, 200, 176), G), "yard": ((170, 160, 144), G), "yard_dark": ((136, 128, 116), G),
+    # other climates: snow, tropical crops and ores
+    "snow": ((240, 244, 250), O), "copper_ore": ((104, 150, 124), O), "kimberlite": ((96, 100, 104), O),
+    "rock": ((168, 146, 118), O), "fruit": ((242, 160, 44), O), "banana": ((236, 214, 84), O),
+    "palm_leaf": ((112, 168, 70), O), "latex": ((240, 236, 222), O), "mud": ((120, 88, 62), G),
+    "roof_red": ((186, 84, 60), W),
+    # toyland: bright candy and toy colours
+    "toy_red": ((222, 64, 58), W), "toy_blue": ((62, 120, 214), W), "toy_yellow": ((246, 202, 58), W),
+    "toy_green": ((92, 170, 70), W), "toy_pink": ((244, 150, 184), W), "toy_purple": ((140, 104, 220), W),
+    "toy_white": ((248, 246, 240), W), "toy_orange": ((246, 140, 50), W), "toy_cyan": ((96, 196, 220), W),
+    "floss": ((246, 188, 180), O), "stick": ((70, 136, 214), O), "cola": ((96, 50, 30), O),
+    "caramel": ((204, 136, 64), O), "toffee": ((156, 92, 44), O), "sugar": ((250, 250, 246), O),
+    "bubble": ((196, 228, 246), O), "can": ((200, 206, 214), W),
     # recolour parts (rendered neutral grey; the mask makes them company / industry colour)
     "cc": ((150, 150, 150), W), "cc_light": ((190, 190, 190), W), "cc_flat": ((160, 160, 160), O),
 }
