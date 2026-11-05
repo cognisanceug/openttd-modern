@@ -51,6 +51,7 @@
 #include "gui.h"
 #include "rail_gui.h"
 #include "road_gui.h"
+#include "terraform_gui.h"
 #include "town.h"
 #include "video/video_driver.hpp"
 
@@ -1827,6 +1828,10 @@ static void ShowWindowByName(std::string_view name)
 	if (_game_mode != GameMode::Normal || !Company::IsValidID(_local_company)) return;
 	if (name == "build_rail") ShowBuildRailToolbar(RAILTYPE_RAIL);
 	if (name == "build_road") ShowBuildRoadToolbar(ROADTYPE_ROAD);
+	if (name == "build_tram") ShowBuildRoadToolbar(ROADTYPE_TRAM);
+	if (name == "build_water") ShowBuildDocksToolbar();
+	if (name == "build_air") ShowBuildAirToolbar();
+	if (name == "landscaping") ShowTerraformToolbar();
 	if (name == "finances") ShowCompanyFinances(_local_company);
 	if (name == "company") ShowCompany(_local_company);
 }
@@ -1834,9 +1839,9 @@ static void ShowWindowByName(std::string_view name)
 /** Open a window by name, for GUI screenshots from scripts. @copydoc IConsoleCmdProc */
 static bool ConShowWindow(std::span<std::string_view> argv)
 {
-	static const std::initializer_list<std::string_view> names = {"build_rail", "build_road", "town", "goto_town", "title_view", "finances", "company", "options"};
+	static const std::initializer_list<std::string_view> names = {"build_rail", "build_road", "build_tram", "build_water", "build_air", "landscaping", "town", "goto_town", "title_view", "finances", "company", "options"};
 	if (argv.size() != 2 || std::ranges::find(names, argv[1]) == names.end()) {
-		IConsolePrint(CC_HELP, "Open a window. Usage: 'show_window <build_rail | build_road | town | goto_town | title_view | finances | company | options>'.");
+		IConsolePrint(CC_HELP, "Open a window. Usage: 'show_window <build_rail | build_road | build_tram | build_water | build_air | landscaping | town | goto_town | title_view | finances | company | options>'.");
 		return true;
 	}
 
