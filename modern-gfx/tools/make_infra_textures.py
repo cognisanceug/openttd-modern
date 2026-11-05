@@ -28,6 +28,8 @@ Usage: make_infra_textures.py <render/textures> <outdir> [size]
 
 import os
 import sys
+from concurrent.futures import ProcessPoolExecutor
+from functools import partial
 
 import numpy as np
 from PIL import Image
@@ -77,9 +79,18 @@ def smooth(e0, e1, v):
 
 
 def blend(img, colour, alpha):
+    # Only the bounding box of the non-zero alpha changes, so work on that alone.
+    rows, cols = np.flatnonzero(alpha.any(axis=1)), np.flatnonzero(alpha.any(axis=0))
+    if rows.size == 0:
+        return
+    box = np.s_[rows[0]:rows[-1] + 1, cols[0]:cols[-1] + 1]
+    if np.ndim(colour) == 3:
+        colour = colour[box]
+    alpha = alpha[box]
     a = alpha[..., None]
-    img[..., :3] = img[..., :3] * (1 - a) + colour * a
-    img[..., 3] = np.maximum(img[..., 3], alpha)
+    sub = img[box]
+    sub[..., :3] = sub[..., :3] * (1 - a) + colour * a
+    sub[..., 3] = np.maximum(sub[..., 3], alpha)
 
 
 def segment_coords(x, y, track):
@@ -224,18 +235,38 @@ def save(img, path):
 # --- tram tracks ---------------------------------------------------------------
 
 def tram_paths(arms):
-    """Track centre lines (as point arrays) for a road shape: straights, quarter arcs, loops."""
-    pts = lambda a, b, n=64: np.linspace(a, b, n)  # noqa: E731
+    """Track centre lines for a road shape: straights, quarter arcs, loops.
+
+    Each path is (points, index): a point array and a function giving, for grid
+    coordinates, the (fractional) index of the polyline segment nearest to them.
+    """
     mid = {k: np.array(v) for k, v in MID.items()}
     corner = {frozenset(("NW", "NE")): (-0.5, 0.5), frozenset(("NE", "SE")): (0.5, 0.5),
               frozenset(("SE", "SW")): (0.5, -0.5), frozenset(("SW", "NW")): (-0.5, -0.5)}
     opposite = {"NE": "SW", "SW": "NE", "NW": "SE", "SE": "NW"}
+
+    def straight(a, b, n=64):
+        d = b - a
+        L2 = d @ d
+        return np.linspace(a, b, n), lambda x, y: ((x - a[0]) * d[0] + (y - a[1]) * d[1]) / L2 * (n - 1)
+
+    def arc(c, r, a0, a1, n):
+        ang = np.linspace(a0, a1, n)
+        path = np.stack([c[0] + r * np.cos(ang), c[1] + r * np.sin(ang)], axis=1)
+
+        def index(x, y):
+            rel = np.mod(np.arctan2(y - c[1], x - c[0]) - a0 + np.pi, 2 * np.pi) - np.pi
+            if a1 - a0 >= 2 * np.pi - 1e-9:  # full loop: angles 0..2pi
+                rel = np.mod(rel, 2 * np.pi)
+            return rel / (a1 - a0) * (n - 1)
+        return path, index
+
     paths = []
     arms = list(arms)
     done = set()
     for a in arms:
         if opposite[a] in arms and frozenset((a, opposite[a])) not in done:
-            paths.append(pts(mid[a], mid[opposite[a]]))
+            paths.append(straight(mid[a], mid[opposite[a]]))
             done.add(frozenset((a, opposite[a])))
     for i, a in enumerate(arms):
         for b in arms[i + 1:]:
@@ -246,35 +277,59 @@ def tram_paths(arms):
                 a1 = np.arctan2(*(mid[b] - c)[::-1])
                 if abs(a1 - a0) > np.pi:
                     a1 += 2 * np.pi * (1 if a1 < a0 else -1)
-                ang = np.linspace(a0, a1, 64)
-                paths.append(np.stack([c[0] + 0.5 * np.cos(ang), c[1] + 0.5 * np.sin(ang)], axis=1))
+                paths.append(arc(c, 0.5, a0, a1, 64))
     if len(arms) == 1:
         # Dead end: run to a balloon loop near the tile centre.
         m = mid[arms[0]]
         d = -m / np.linalg.norm(m)
         centre = m + d * 0.62
-        paths.append(pts(m, m + d * 0.32))
-        ang = np.linspace(0, 2 * np.pi, 96)
-        paths.append(np.stack([centre[0] + 0.3 * np.cos(ang), centre[1] + 0.3 * np.sin(ang)], axis=1))
+        paths.append(straight(m, m + d * 0.32))
+        paths.append(arc(centre, 0.3, 0, 2 * np.pi, 96))
     return paths
 
 
-def path_fields(x, y, path):
-    """Distance to a polyline and the arc length of the nearest point, on the grid."""
+REACH = 0.2  # beyond the tram bed (0.18), where distances no longer matter
+
+
+def path_fields(x, y, path, index, window=2):
+    """Distance to a polyline and the arc length of the nearest point, on the grid.
+
+    Only the segments around index(x, y) are tested; within reach of the track
+    (where the fields are used) the nearest segment is always among them.
+    """
     seg_len = np.hypot(*np.diff(path, axis=0).T)
     cum = np.concatenate([[0], np.cumsum(seg_len)])
+    segs = len(path) - 1
+    p0 = path[:-1]
+    d = np.diff(path, axis=0)
+    L2 = np.array([max(v @ v, 1e-12) for v in d])
+    closed = np.allclose(path[0], path[-1])
+    best_full = np.full(x.shape, 1e9)
+    along_full = np.zeros(x.shape)
+    # Pixels further than REACH from every path point are left at "far away".
+    lo, hi = path.min(axis=0) - REACH, path.max(axis=0) + REACH
+    cols = np.flatnonzero((x[0] >= lo[0]) & (x[0] <= hi[0]))
+    rows = np.flatnonzero((y[:, 0] >= lo[1]) & (y[:, 0] <= hi[1]))
+    if rows.size == 0 or cols.size == 0:
+        return best_full, along_full
+    box = np.s_[rows[0]:rows[-1] + 1, cols[0]:cols[-1] + 1]
+    x, y = x[box], y[box]
+    k0 = np.floor(index(x, y)).astype(int)
     best = np.full(x.shape, 1e9)
+    best_k = np.full(x.shape, segs)
     along = np.zeros(x.shape)
-    for i in range(len(path) - 1):
-        p0, p1 = path[i], path[i + 1]
-        d = p1 - p0
-        L2 = max(d @ d, 1e-12)
-        t = np.clip(((x - p0[0]) * d[0] + (y - p0[1]) * d[1]) / L2, 0, 1)
-        dist = np.hypot(x - (p0[0] + t * d[0]), y - (p0[1] + t * d[1]))
-        better = dist < best
+    for off in range(-window, window + 1):
+        k = np.mod(k0 + off, segs) if closed else np.clip(k0 + off, 0, segs - 1)
+        px, py, dx, dy = p0[k, 0], p0[k, 1], d[k, 0], d[k, 1]
+        t = np.clip(((x - px) * dx + (y - py) * dy) / L2[k], 0, 1)
+        dist = np.hypot(x - (px + t * dx), y - (py + t * dy))
+        # Same tie-break as testing every segment in order: the lowest index wins.
+        better = (dist < best) | ((dist == best) & (k < best_k))
         best = np.where(better, dist, best)
-        along = np.where(better, cum[i] + t * seg_len[i], along)
-    return best, along
+        best_k = np.where(better, k, best_k)
+        along = np.where(better, cum[k] + t * seg_len[k], along)
+    best_full[box], along_full[box] = best, along
+    return best_full, along_full
 
 
 TRAM_GAUGE = 0.085
@@ -288,7 +343,7 @@ def tram_texture(n, ground, arms, overlay, noise):
     if not overlay:
         img[..., :3] = ground
         img[..., 3] = 1.0
-    fields = [path_fields(x, y, p) for p in tram_paths(arms)]
+    fields = [path_fields(x, y, p, index) for p, index in tram_paths(arms)]
     if not overlay:
         for dist, along in fields:
             bed = 1 - smooth(0.15, 0.18, dist)
@@ -303,94 +358,129 @@ def tram_texture(n, ground, arms, overlay, noise):
     return img
 
 
-def main():
-    tex_dir, outdir = sys.argv[1], sys.argv[2]
-    n = int(sys.argv[3]) if len(sys.argv) > 3 else 1024
-    os.makedirs(outdir, exist_ok=True)
+def apron_texture(n, noise):
+    x, y = grid(n)
+    img = np.zeros((n, n, 4))
+    img[..., :3] = CONCRETE * (1 + (noise[..., None] - 0.5) * 0.06)
+    img[..., 3] = 1.0
+    joint = (np.mod((x + 0.5) * 4, 1) < 0.012) | (np.mod((y + 0.5) * 4, 1) < 0.012)
+    blend(img, CONCRETE_JOINT, joint.astype(float))
+    return img
+
+
+def deck_ground(n, axis, wood, noise):
+    x, y = grid(n)
+    if wood:
+        plank = np.zeros((n, n, 3)) + PLANK * (1 + (noise[..., None] - 0.5) * 0.08)
+        along = y if axis == "X" else x
+        joints = (np.mod((along + 0.5) * 16, 1) < 0.08)[..., None]
+        return plank * (1 - joints) + PLANK_JOINT * joints
+    return np.zeros((n, n, 3)) + DECK * (1 + (noise[..., None] - 0.5) * 0.05)
+
+
+def bay_texture(n, entrance, truck, noise):
+    """Road stop bay: asphalt, kerb on the three closed sides, bay markings."""
+    x, y = grid(n)
+    edge_d = {"NE": 0.5 - y, "SE": 0.5 - x, "SW": y + 0.5, "NW": x + 0.5}
+    opposite = {"NE": "SW", "SE": "NW", "SW": "NE", "NW": "SE"}
+    img = np.zeros((n, n, 4))
+    img[..., :3] = PAVING * (1 + (noise[..., None] - 0.5) * 0.05)
+    img[..., 3] = 1.0
+    closed = [e for e in edge_d if e != entrance]
+    inner = np.min([edge_d[e] for e in closed], axis=0)
+    blend(img, KERB, (inner > 0.06).astype(float))
+    blend(img, ASPHALT * (1 + (noise[..., None] - 0.5) * 0.06), (inner > 0.085).astype(float))
+    far = edge_d[opposite[entrance]]
+    side = np.min([edge_d[e] for e in closed if e != opposite[entrance]], axis=0)
+    if truck:
+        # Two parking bays separated by a white line along the bay.
+        along_mid = np.abs(side - 0.5) < 0.01
+        blend(img, MARKING, (along_mid & (far > 0.12)).astype(float))
+        blend(img, MARKING, ((np.abs(far - 0.12) < 0.01) & (side > 0.1)).astype(float))
+    else:
+        box = (inner > 0.13) & (inner < 0.15)
+        blend(img, BAY_YELLOW, box.astype(float))
+    return img
+
+
+def jobs(tex_dir, n):
+    """Every texture as (file name, function drawing it), slowest first."""
     grass = load_tiled(os.path.join(tex_dir, "grass.png"), n)
     rng = np.random.default_rng(1005)
     speck = rng.random((n // 4, n // 4))
     noise = np.asarray(Image.fromarray((speck * 255).astype(np.uint8)).resize((n, n), Image.NEAREST), dtype=float) / 255
+    out = []
+
+    # Tram tracks: grooved rails on roads (overlay) and grassed track on their own.
+    for k, arms in enumerate(ROAD_SHAPES):
+        out.append((f"tram{27 + k}.png", partial(tram_texture, n, grass, arms, False, noise)))
+        out.append((f"tram{4 + k}.png", partial(tram_texture, n, None, arms, True, noise)))
 
     overlays = {1005: "X", 1006: "Y", 1007: "U", 1008: "L", 1009: "R", 1010: "W"}
     for sprite, tr in overlays.items():
-        save(rail_texture(n, None, [tr], noise), os.path.join(outdir, f"rail{sprite}.png"))
+        out.append((f"rail{sprite}.png", partial(rail_texture, n, None, [tr], noise)))
     with_ground = {1011: ["Y"], 1012: ["X"], 1013: ["U"], 1014: ["L"], 1015: ["R"], 1016: ["W"], 1017: ["X", "Y"],
                    1035: ["U", "L"], 1036: ["R", "W"]}
     sloped = {12: "L", 13: "W", 14: "R", 15: "U", 16: "R", 17: "L", 18: "W", 19: "U", 20: "X", 21: "Y", 22: "X", 23: "Y"}
     for off, tr in sloped.items():
         with_ground[1011 + off] = [tr]
     for sprite, trs in with_ground.items():
-        save(rail_texture(n, grass, trs, noise), os.path.join(outdir, f"rail{sprite}.png"))
+        out.append((f"rail{sprite}.png", partial(rail_texture, n, grass, trs, noise)))
     # Junction grounds: ballast everywhere except a grass strip along the edge no track reaches.
     x, y = grid(n)
     edge_dist = {"NE": 0.5 - y, "SW": y + 0.5, "NW": x + 0.5, "SE": 0.5 - x}
     for k, edge in enumerate(("NE", "SW", "NW", "SE", None)):
         region = np.ones((n, n)) if edge is None else smooth(0.2, 0.24, edge_dist[edge])
-        save(rail_texture(n, grass, [], noise, ballast_region=region), os.path.join(outdir, f"rail{1018 + k}.png"))
+        out.append((f"rail{1018 + k}.png", partial(rail_texture, n, grass, [], noise, ballast_region=region)))
 
     for k, arms in enumerate(ROAD_SHAPES):
-        save(road_texture(n, grass, arms, True, noise), os.path.join(outdir, f"road{1313 + k}.png"))
-        save(road_texture(n, grass, arms, False, noise), os.path.join(outdir, f"road{1332 + k}.png"))
+        out.append((f"road{1313 + k}.png", partial(road_texture, n, grass, arms, True, noise)))
+        out.append((f"road{1332 + k}.png", partial(road_texture, n, grass, arms, False, noise)))
 
     for k in range(12):
         # The sprite is chosen by the rail axis (GetCrossingRailAxis): even = rail X, so road Y.
         axis = "Y" if k % 2 == 0 else "X"
         barred = (k // 2) % 2 == 1
         paved = 4 <= k < 8
-        save(crossing_texture(n, grass, axis, barred, paved, noise), os.path.join(outdir, f"cross{1370 + k}.png"))
-    img = np.zeros((n, n, 4))
-    img[..., :3] = CONCRETE * (1 + (noise[..., None] - 0.5) * 0.06)
-    img[..., 3] = 1.0
-    joint = (np.mod((x + 0.5) * 4, 1) < 0.012) | (np.mod((y + 0.5) * 4, 1) < 0.012)
-    blend(img, CONCRETE_JOINT, joint.astype(float))
-    save(img, os.path.join(outdir, "apron2634.png"))
+        out.append((f"cross{1370 + k}.png", partial(crossing_texture, n, grass, axis, barred, paved, noise)))
+    out.append(("apron2634.png", partial(apron_texture, n, noise)))
 
     # Bridge decks: concrete or timber planks across the deck, with track or road along it.
     for wood in (False, True):
-        if wood:
-            plank = np.zeros((n, n, 3)) + PLANK * (1 + (noise[..., None] - 0.5) * 0.08)
         for axis in ("X", "Y"):
-            if wood:
-                along = y if axis == "X" else x
-                ground = plank.copy()
-                joints = (np.mod((along + 0.5) * 16, 1) < 0.08)[..., None]
-                ground = ground * (1 - joints) + PLANK_JOINT * joints
-            else:
-                ground = np.zeros((n, n, 3)) + DECK * (1 + (noise[..., None] - 0.5) * 0.05)
+            ground = deck_ground(n, axis, wood, noise)
             suffix = "_wood" if wood else ""
-            img = rail_texture(n, ground, [axis], noise)
-            save(img, os.path.join(outdir, f"deck_rail_{axis}{suffix}.png"))
+            out.append((f"deck_rail_{axis}{suffix}.png", partial(rail_texture, n, ground, [axis], noise)))
             arms = ("SW", "NE") if axis == "X" else ("NW", "SE")
-            save(road_texture(n, ground, arms, False, noise), os.path.join(outdir, f"deck_road_{axis}{suffix}.png"))
-    # Tram tracks: grooved rails on roads (overlay) and grassed track on their own.
-    for k, arms in enumerate(ROAD_SHAPES):
-        save(tram_texture(n, None, arms, True, noise), os.path.join(outdir, f"tram{4 + k}.png"))
-        save(tram_texture(n, grass, arms, False, noise), os.path.join(outdir, f"tram{27 + k}.png"))
+            out.append((f"deck_road_{axis}{suffix}.png", partial(road_texture, n, ground, arms, False, noise)))
 
-    # Road stop bays: asphalt, kerb on the three closed sides, bay markings.
-    edge_d = {"NE": 0.5 - y, "SE": 0.5 - x, "SW": y + 0.5, "NW": x + 0.5}
-    opposite = {"NE": "SW", "SE": "NW", "SW": "NE", "NW": "SE"}
     for base, truck in ((2692, False), (2708, True)):
         for k, entrance in enumerate(("NE", "SE", "SW", "NW")):
-            img = np.zeros((n, n, 4))
-            img[..., :3] = PAVING * (1 + (noise[..., None] - 0.5) * 0.05)
-            img[..., 3] = 1.0
-            closed = [e for e in edge_d if e != entrance]
-            inner = np.min([edge_d[e] for e in closed], axis=0)
-            blend(img, KERB, (inner > 0.06).astype(float))
-            blend(img, ASPHALT * (1 + (noise[..., None] - 0.5) * 0.06), (inner > 0.085).astype(float))
-            far = edge_d[opposite[entrance]]
-            side = np.min([edge_d[e] for e in closed if e != opposite[entrance]], axis=0)
-            if truck:
-                # Two parking bays separated by a white line along the bay.
-                along_mid = np.abs(side - 0.5) < 0.01
-                blend(img, MARKING, (along_mid & (far > 0.12)).astype(float))
-                blend(img, MARKING, ((np.abs(far - 0.12) < 0.01) & (side > 0.1)).astype(float))
-            else:
-                box = (inner > 0.13) & (inner < 0.15)
-                blend(img, BAY_YELLOW, box.astype(float))
-            save(img, os.path.join(outdir, f"bay{base + k}.png"))
+            out.append((f"bay{base + k}.png", partial(bay_texture, n, entrance, truck, noise)))
+    return out
+
+
+_JOBS = None
+
+
+def _init_worker(tex_dir, n):
+    global _JOBS
+    _JOBS = jobs(tex_dir, n)
+
+
+def _run_job(i, outdir):
+    name, draw = _JOBS[i]
+    save(draw(), os.path.join(outdir, name))
+
+
+def main():
+    tex_dir, outdir = sys.argv[1], sys.argv[2]
+    n = int(sys.argv[3]) if len(sys.argv) > 3 else 1024
+    os.makedirs(outdir, exist_ok=True)
+    count = len(jobs(tex_dir, 8))  # each worker builds the full-size job list itself
+    workers = min(8, os.cpu_count() or 1)
+    with ProcessPoolExecutor(workers, initializer=_init_worker, initargs=(tex_dir, n)) as pool:
+        list(pool.map(partial(_run_job, outdir=outdir), range(count)))
     print(f"wrote infrastructure textures to {outdir}")
 
 
