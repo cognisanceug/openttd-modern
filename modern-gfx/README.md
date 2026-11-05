@@ -173,9 +173,11 @@ its animated neighbour's mean), each pair averages to the teal, and only the
 cycle's brightness change shows, moving along the crests. The pattern is
 periodic in tile coordinates, so seas, shores, rivers, canals and aqueduct
 troughs join without seams. `water_anim.py <render/ground> <ref/ground> out.gif`
-simulates the cycle for a patch of sea. Desert and snow shores do not exist in
-OpenTTD: DrawShoreTile() uses the one COAST block in every climate, so for the
-other climates the meadow on our shores would need a climate switch.
+simulates the cycle for a patch of sea. Coast tiles never carry snow or
+desert: DrawShoreTile() uses the one COAST block in every climate, map
+generation keeps desert at least 5 tiles from water, and land sloping down to
+the sea is below the snow line. The meadow on our shores matches the set's
+grass, which is used in every climate, so no climate switch is needed.
 Scatter objects (tufts, boulders) are real geometry placed on the slope
 surface and cut to the tile outline by the footprint mask. Rails and roads
 are drawn as tile-space textures (tools/make_infra_textures.py: ballast,
