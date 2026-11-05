@@ -52,6 +52,8 @@ Currently covered (temperate; trees in all climates):
 | 2727–2732, 693 | docks (quay deck at land height on piles, crane and containers on the water part) and the buoy (also the build-buoy toolbar icon, as in the original) |
 | 2096–2105 | oil rig: one model cut into three screen-column slices, with its construction stages |
 | 2011–2183, 2293–2340 | temperate industries: coal mine, power station, sawmill, forest, oil refinery, factory, printing works, steel mill, farm, oil wells, bank, iron ore mine; all construction stages and animation frames |
+| 2026–2039, 2184–2292, 2341–2364 | sub-arctic and sub-tropical industries: copper ore mine, food processing plant, paper mill, gold mine, bank, diamond mine, fruit and rubber plantations, water supply, water tower, lumber mill; the snowy forest (2072–2077, sub-arctic only) and the oil wells' sandy ground (2173, sub-tropical only) |
+| 4677–4789 | toyland industries: candyfloss forest (2072–2077, toyland only), sweet factory, battery farm, cola wells, toy shop, toy factory, plastic fountains, fizzy drink factory, bubble generator, toffee quarry, sugar mine, with the animated child sprites |
 
 Every sprite ships as 8bpp fallback plus 32bpp at 1x, 2x and 4x.
 
@@ -110,7 +112,9 @@ $B -b --factory-startup -P blender/render_objects.py -- render/objects
 .venv/bin/python tools/industry_table.py ../src/table ref/industries/industries.json
 .venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfx1_base.grf 2011 2340 ref/industries   # reference sizes only
 .venv/bin/python tools/make_industry_textures.py render/textures/industry   # needs numpy
+.venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfx1_base.grf 4675 4790 ref/industries/toyland   # reference only (also 2341-2364)
 $B -b --factory-startup -P blender/render_industries.py -- render/industries   # [--only 2013,2150] [--part k/n]
+for c in arctic tropic toyland; do $B -b --factory-startup -P blender/render_industries.py -- render/industries_$c --climate $c; done
 .venv/bin/python tools/make_airport_textures.py render/textures render/textures/airport 512   # needs numpy
 $B -b --factory-startup -P blender/render_airports.py -- render/airports   # [--only b2651,g2645,rig] [--part k/n]
 .venv/bin/python tools/check_calibration.py render/ground ref/ground
@@ -148,6 +152,7 @@ LOAD="$PWD/test-home/terrain_test.sav" ZOOM=2 tools/ingame_shot.sh modern terrai
 SEED=5 tools/terrain_shot.sh terrain_4x   # TerrainTest funds farms and clears a row of land every 8 days: fields, fences, bare soil -> grass (~3 min)
 CFG=terrain_toyland SEED=5 tools/terrain_shot.sh toyland_terrain_4x   # the same in toyland (no farms): bare putty -> grass
 tools/industry_shot.sh industry_4x   # IndustryTest builds HQ, statue, owned land and every industry (two waves: complete and under construction)
+CLIMATE=arctic tools/industry_shot.sh industry_arctic_4x   # the same in sub-arctic (also tropic, toyland)
 tools/airport_shot.sh airport_4x     # AirportTest builds every airport type, docks in four directions, buoys and an oil rig
 CLIMATE=toyland CFG=infra_future tools/infra_shot.sh toyland_infra_4x   # CLIMATE= generates any of the above in another climate
 CLIMATE=toyland tools/airport_shot.sh toyland_airport_4x                # (toyland: rails, roads, tunnels, airports on the toyland meadow)
@@ -270,6 +275,33 @@ mask on roofs, bands and flags. On all other industry sprites those parts get
 fixed colours. The iron ore mine is one 4×4 open pit: every tile renders the
 whole pit seen through its own diamond, so the 16 ground sprites join without
 seams and the far walls show through the tiles in front of them.
+
+The other climates follow the same scheme (`blender/industry_climates.py`,
+`blender/industry_toyland.py`). The gold mine (4×4) and the diamond mine (3×3)
+are open pits like the iron ore mine (`blender/pit_mines.py`); they draw their
+tiles partly as building sprites over 2022, which share the ground sprite's
+anchor when the box sits at the tile's north corner, so all their sprites are
+rendered as whole-pit views through the tile's diamond. Sub-arctic has no snowy
+industries in the original: only the forest (above the snow line) gets snow.
+Arctic and tropical farms and oil wells keep the temperate sprites, the oil
+wells' ground turns to sand in sub-tropical.
+
+Some sprite numbers are shared between climates (`table/landscape_sprite.h`):
+2072–2077 are the forest in temperate, the snowy forest in sub-arctic and the
+candyfloss forest in toyland; 2173 is the oil wells' ground. `render_industries.py
+--climate` renders these variants into `render/industries_<climate>`, and
+`tools/pack_industry.py` packs them inside `if (climate == ...)` blocks after the
+temperate ones, so temperate stays unchanged.
+
+Toyland is bright: toy bricks with studs, peppermint stripes, candy canes and
+candyfloss like the toyland trees. Four draw procs add child sprites that move
+by their screen offset (`industry_land.h`): the toy factory's clay ball, stamp and
+rubber duck, the toffee quarry's shovel, the sugar mine's shaking sieve with
+its growing pile and dust, the bubble generator's bubble. Each child is
+modelled where it is at a reference offset, in its parent's frame, and packed
+so it lands there; one offset step moves it as in the original ((−2, +1) px is
+one unit along x, (0, −1) px one unit up). The eight plastic fountain grounds are
+one render.
 
 The tiny and small HQs live entirely in ground sprites (as in the original) and
 stay low; medium to huge HQs put the building into the N, E and W tiles' full-tile
