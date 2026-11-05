@@ -1,7 +1,7 @@
 #!/bin/sh
 # Start OpenTTD in an isolated test home, take one screenshot and quit.
 # Usage: [SEED=n | LOAD=savegame] [SHOT=big|normal] [ZOOM=4|2] [SIZE="w h"] ingame_shot.sh <config> <name> [keep]
-#   modern  OpenGFX plus nml/modern_terrain.grf      base  OpenGFX only
+#   modern  OpenGFX plus nml/moderngfx.grf      base  OpenGFX only
 #   water   like modern, with a high sea level so coasts and rivers show up
 #   town    like modern, with many towns: houses and roads on slopes show foundations
 #   arctic, tropic, toyland   like modern in that climate (snow, desert, the climate's trees)
@@ -33,7 +33,7 @@ cp test-config/*.cfg "$T/"
 [ "${ZOOM:-4}" = 2 ] && sed -i '' 's/^zoom_min = 0/zoom_min = 1/' "$T/$1.cfg"
 rm -rf "$T/game" && cp -R test-config/game "$T/game"
 [ -f "$T/baseset/opengfx-8.0.tar" ] || cp "$HOME/Documents/OpenTTD/baseset/opengfx-8.0.tar" "$T/baseset/"
-ln -sf "$PWD/nml/modern_terrain.grf" "$T/newgrf/modern_terrain.grf"
+ln -sf "$PWD/nml/moderngfx.grf" "$T/newgrf/moderngfx.grf"
 cat > "$T/scripts/game_start.scr" <<SCR
 screenshot ${SHOT:-big} size ${SIZE:-1600 1000} $2
 SCR

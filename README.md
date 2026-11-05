@@ -151,7 +151,7 @@ GFX_GRASS=toy $B -b --factory-startup -P blender/render_airports.py -- render/to
 .venv/bin/python tools/pack_grf.py render ref/ground nml
 ```
 
-The result is `nml/modern_terrain.grf`. To check it in game without touching
+The result is `nml/moderngfx.grf`. To check it in game without touching
 your own OpenTTD config (needs the game built in `../build`):
 
 ```sh
@@ -628,7 +628,7 @@ Text in the modern style:
   colour (the "Coloured news appears in" year only applies to the classic
   style); small news is slate like the other windows (`src/news_gui.cpp`).
 
-`nml/modern_gui.grf` is a separate NewGRF for interface graphics; it holds the
+`nml/moderngfx_gui.grf` is a separate NewGRF for interface graphics; it holds the
 title screen logo, set by `tools/make_logo.py`, the 36 main toolbar icons
 plus the minimap buttons, and the build menu icons (rail and electric rail,
 road, tram, water, airport, landscaping), flat symbols in the colours of the
@@ -649,7 +649,7 @@ and ModernGFX Interface enabled for new games; without them the default
 .venv/bin/python tools/make_logo.py render/logo
 .venv/bin/python tools/make_icons.py render/icons
 .venv/bin/python tools/make_gui_icons.py render/gui_icons
-.venv/bin/python tools/pack_gui_grf.py render nml           # -> nml/modern_gui.grf
+.venv/bin/python tools/pack_gui_grf.py render nml           # -> nml/moderngfx_gui.grf
 SEED=3 tools/title_save.sh title                           # -> shots/title.sav, copy to ../media/baseset/opntitle_modern.dat
 tools/gui_shot.sh classic game game_classic                # rail toolbar, town and finance windows
 TITLE=shots/title.sav tools/gui_shot.sh modern title title_modern

@@ -14,8 +14,8 @@ style=$1 prefix=$2
 shift 2
 mkdir -p "$T/baseset" "$T/newgrf" "$T/scripts" "$T/screenshot" shots
 [ -f "$T/baseset/opengfx-8.0.tar" ] || cp "$HOME/Documents/OpenTTD/baseset/opengfx-8.0.tar" "$T/baseset/"
-ln -sf "$PWD/nml/modern_terrain.grf" "$T/newgrf/modern_terrain.grf"
-ln -sf "$PWD/nml/modern_gui.grf" "$T/newgrf/modern_gui.grf"
+ln -sf "$PWD/nml/moderngfx.grf" "$T/newgrf/moderngfx.grf"
+ln -sf "$PWD/nml/moderngfx_gui.grf" "$T/newgrf/moderngfx_gui.grf"
 cfg="$T/gui_$style.cfg"
 cp test-config/gui_$style.cfg "$cfg"
 rm -f "$T/scripts/autoexec.scr" "$T"/scripts/icons_*.scr

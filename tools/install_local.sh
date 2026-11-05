@@ -17,7 +17,7 @@ if [ -d "$DST" ] && [ -n "$(ls -A "$DST")" ] && [ ! -f "$DST/data/openttd.cfg" ]
 	echo "$DST exists and is not an OpenTTD Modern install, choose another target" >&2; exit 1
 fi
 [ -x "$BUILD/openttd" ] || { echo "no game build in $BUILD" >&2; exit 1; }
-for g in nml/modern_terrain.grf nml/modern_gui.grf; do
+for g in nml/moderngfx.grf nml/moderngfx_gui.grf; do
 	[ -f "$g" ] || { echo "missing $g, run pack_grf.py and pack_gui_grf.py first" >&2; exit 1; }
 done
 
@@ -27,7 +27,10 @@ for d in baseset lang ai game; do
 	cp -R "$BUILD/$d" "$DST/game/$d"
 done
 cp "$BUILD/openttd" "$DST/game/openttd"
-cp nml/modern_terrain.grf nml/modern_gui.grf "$DST/data/newgrf/"
+cp nml/moderngfx.grf nml/moderngfx_gui.grf "$DST/data/newgrf/"
+# Earlier installs used the file names modern_terrain.grf and modern_gui.grf.
+rm -f "$DST/data/newgrf/modern_terrain.grf" "$DST/data/newgrf/modern_gui.grf"
+[ ! -f "$DST/data/openttd.cfg" ] || perl -pi -e 's/^modern_terrain\.grf/moderngfx.grf/; s/^modern_gui\.grf/moderngfx_gui.grf/' "$DST/data/openttd.cfg"
 [ -f "$DST/data/baseset/opengfx-8.0.tar" ] || cp "$HOME/Documents/OpenTTD/baseset/opengfx-8.0.tar" "$DST/data/baseset/"
 
 if [ ! -f "$DST/data/openttd.cfg" ]; then
@@ -39,8 +42,8 @@ modern_ui = true
 [graphicsset]
 name = OpenGFX
 [newgrf]
-modern_terrain.grf =
-modern_gui.grf =
+moderngfx.grf =
+moderngfx_gui.grf =
 [misc]
 resolution = 1600,1000
 fullscreen = false
