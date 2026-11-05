@@ -81,9 +81,13 @@ Monorail and maglev (guideway_blocks): tracks 1087-1118 / 1169-1200, crossings 1
 depots and stations 1145-1168 / 1227-1250 from the rail renders, tunnels 2373-2388 and
 the bridge sprites only they use (2581-2592, 4324-4403).
 
+Airports (heliport 2633, grounds and buildings 2635-2691, Action 5 AIRPORTS and the
+OTTD_GUI helipad), docks 2727-2732, the buoy 693 and the oil rig 2096-2105: see
+tools/pack_airport.py.
+
 Usage: pack_grf.py <render-dir> <ref/ground> <nml-dir>
   (render-dir holds ground/, snow/, desert/, trees/, foundations/, fences/, signals/, depots/, bridges/,
-   tunnels/, stations/, catenary/, houses/)
+   tunnels/, stations/, catenary/, houses/, objects/, industries/, airports/)
 """
 
 import json
@@ -654,6 +658,9 @@ def main():
     import pack_industry
     nml += pack_industry.object_blocks(render_dir, gfx_dir, sheet_block)
     nml += pack_industry.industry_blocks(render_dir, gfx_dir, sheet_block)
+    # Airports, docks, buoys and the oil rig, see tools/pack_airport.py.
+    import pack_airport
+    nml += pack_airport.airport_blocks(render_dir, gfx_dir, sheet_block)
     open(os.path.join(nml_dir, "modern_terrain.nml"), "w").write("\n".join(nml))
 
     os.makedirs(os.path.join(nml_dir, "lang"), exist_ok=True)
