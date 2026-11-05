@@ -441,10 +441,24 @@ The fork draws windows in a flat modern style (Game Options › Interface,
 "Modern window style", on by default; off gives the classic bevels): even
 1 px outlines instead of bevels, flat title bars, and the grey, brown, dark
 green, orange, mauve and yellow window colours mapped to slate, sand, sage,
-steel blue, lavender and ochre ramps of the palette (`GetWindowColour()` in `src/widget.cpp`). A TrueType
-font completes the look, e.g. in `openttd.cfg` under `[misc]`:
-`small_font = AvenirNext-Medium`, `medium_font = AvenirNext-Medium`,
-`large_font = AvenirNext-DemiBold`, `prefer_sprite_font = false`.
+steel blue, lavender and ochre ramps of the palette (`GetWindowColour()` in `src/widget.cpp`).
+
+Text in the modern style:
+- Font: the bundled Inter (SIL Open Font License, `media/baseset/Inter-*.ttf`
+  with `Inter-LICENSE.txt`) is the default for the small, normal and large
+  sizes, without the hard text shadow; the monospace font stays OpenTTD-Mono.
+  Fonts set under `[misc]` in `openttd.cfg` (`small_font` etc.) still win,
+  `prefer_sprite_font = true` still gives the sprite font, and if Inter is
+  missing the classic OpenTTD TrueType fonts are used (`src/fontcache.cpp`).
+- Map labels: stations, waypoints and signs are flat rounded labels in the
+  company colour with a soft shadow and black or white text, whichever reads
+  better; town names and text effects sit on a translucent dark backing
+  instead of the pixel shadow; transparent signs keep a light backing
+  (`DrawModernViewportString()` in `src/viewport.cpp`).
+- News: light cards with a slate header bar holding the close box, the date
+  and the town of the news item, a sans-serif headline, and always in
+  colour (the "Coloured news appears in" year only applies to the classic
+  style); small news is slate like the other windows (`src/news_gui.cpp`).
 
 `nml/modern_gui.grf` is a separate NewGRF for interface graphics; it holds the
 title screen logo, set by `tools/make_logo.py`, the 36 main toolbar icons
@@ -473,6 +487,12 @@ tools/gui_shot.sh classic game game_classic                # rail toolbar, town 
 TITLE=shots/title.sav tools/gui_shot.sh modern title title_modern
 .venv/bin/python tools/gui_compare.py shots/game_classic.png shots/game_modern.png shots/cmp_game.png
 ```
+
+`tools/text_shot.sh` shoots the labels, news items and the status bar ticker,
+e.g. `ZOOM=4 tools/text_shot.sh modern signs_out station` or
+`tools/text_shot.sh classic news station news_thin`; it uses the `show_window`
+names `station` (a station and a sign next to the largest town) and
+`news_thin`, `news_small`, `news_normal`, `news_vehicle`, `news_company`.
 
 `tools/gui_icons_shot.sh` shoots several window sets in one game, e.g.
 `tools/gui_icons_shot.sh modern icons rail:build_rail,build_signals depot:depot,vehicle`.
