@@ -39,6 +39,7 @@ Currently covered (temperate; trees in all climates):
 | 1313–1350 | roads with pavements (towns) and with grass verges: 19 shapes each incl. slopes and dead ends |
 | 1370–1381 | level crossings, open and barred |
 | 1420–1575, 4404–4417 | all 31 temperate town houses (52 variants incl. the 2×2 stadiums and shopping mall and the 1×2 hotel), with their grounds (lawn with hedge and path, paving, construction site, pitches) and construction stages (foundations, walls with scaffolding); recolourable facades keep their `PALETTE_TO_STRUCT_*` variants via a structure recolour mask; the office block lift (1443) |
+| 1566–1569, 4418–4492, 4569–4625, 4627–4676, 4694–4698 | the town houses of the other climates with their grounds and construction stages: sub-arctic (steep roofs, timber, falu red and ochre; every house also above the snow line with its roofs and garden under snow), sub-tropical (white and ochre walls, flat or low tiled roofs, arcades, roof water tanks, palms; they bring their own sand garden or sandstone paving), toyland (toy houses, a boot, igloo, tepees, teapot, piggy bank and a toy soldier; built in a gift box that is unwrapped) |
 | Action 5 `ONE_WAY_ROAD` | one-way markers: a white arrow in each lane (no-entry bars when both directions are closed), flat and on inclined roads |
 | 1576–1708 | temperate trees: 19 bases × 7 growth stages (cypress and poplar as slim columns of foliage lumps, dead cypress as a bare spire) |
 | 1709–1820 | sub-arctic trees: 8 species, and the same 8 with snow on every upward facet for above the snow line |
@@ -128,6 +129,9 @@ SEED=1 SIZE="4800 3200" tools/infra_shot.sh infra_4x   # InfraTest builds rails,
 SEED=5 tools/ingame_shot.sh arctic arctic_4x      # sub-arctic: snow ground, trees with and without snow
 SEED=5 tools/ingame_shot.sh tropic tropic_4x      # sub-tropical: desert ground, palms, rainforest, cacti
 SEED=5 tools/ingame_shot.sh toyland toyland_4x    # toyland trees
+SEED=4 SIZE="2400 1600" tools/ingame_shot.sh arctic_town arctic_town_4x    # sub-arctic town above the snow line (SEED=1: below it)
+SEED=1 SIZE="2400 1600" tools/ingame_shot.sh tropic_town tropic_town_4x    # sub-tropical houses (SEED=6: the tall ones)
+SEED=5 SIZE="2400 1600" tools/ingame_shot.sh toyland_town toyland_town_4x  # toyland houses
 LOAD="$PWD/test-home/terrain_test.sav" ZOOM=2 tools/ingame_shot.sh modern terrain_2x   # 2x sprites
 SEED=5 tools/terrain_shot.sh terrain_4x   # TerrainTest funds farms and clears a row of land every 8 days: fields, fences, bare soil -> grass (~3 min)
 tools/industry_shot.sh industry_4x   # IndustryTest builds HQ, statue, owned land and every industry (two waves: complete and under construction)
@@ -204,6 +208,18 @@ structure recolour mask as the bridges (index 75 is a brick red, so the plain
 variant keeps a brick facade). Grounds are tile-space textures
 (tools/make_house_textures.py) laid on the flat tile; buildings cast a soft
 shadow onto their own tile.
+
+The houses of the other climates use the same kit; their models are in
+blender/house_climates.py. Sub-arctic houses above the snow line are the same
+model with every roof under snow (model name "…@snow"), on snowy grounds made
+from the set's snow texture. Finished houses whose original ground is the bare
+land (all sub-tropical houses, the sub-arctic hotel and brick block) draw their
+own ground inside the building sprite, under the cast shadow. Toyland houses
+are built in a gift box: closed at stage 0, unwrapped with the house standing
+in it later. All these sprite numbers are only used in their climate, so they
+are replaced without climate checks; the one sprite pair a climate base set
+replaces (statue and fountain 1454/1455 in sub-tropical) keeps the temperate
+drawing, which fits there too.
 
 ## Objects and industries
 

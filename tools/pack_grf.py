@@ -69,9 +69,10 @@ tunnel wires 80-83, bridge wires 95-106 and tram-only bridge decks 107-112 (tram
 
 One-way road markers: Action 5 ONE_WAY_ROAD, drawn at the tile centre (oneway_block).
 
-Town houses 1420-1575 and 4404-4417 (render_houses.py): buildings are the
-rendered house with its cast shadow under it, recolourable facades carry a
-structure recolour mask; grounds are the flat tile, with house parts laid over
+Town houses of all climates, 1420-1575, 4404-4492, 4569-4625, 4627-4676 and
+4694-4698 (render_houses.py): buildings are the rendered house with its cast
+shadow under it (and under that the house's own ground where it has one),
+recolourable facades carry a structure recolour mask; grounds are the flat tile, with house parts laid over
 it where the original draws the house in the ground sprite. The lift (1443) is
 a child sprite placed relative to the top-left corner of the office block
 sprite (1442), so its offsets are taken from that sprite's crop. Unused
@@ -231,13 +232,22 @@ def tree_sprite(render_dir, sprite, zoom):
     return out.crop((left, top, right, bottom)), left - 31 * zoom, top - TREE_ANCHOR_Y * zoom
 
 
-def house_sprite(render_dir, sprite, zoom, cc):
-    """Building with its shadow under it, cropped; origin (47z, 136z). Returns (im, x, y, recolour mask)."""
+def house_sprite(render_dir, sprite, zoom, cc, base=False):
+    """Building with its shadow under it, cropped; origin (47z, 136z). Returns (im, x, y, recolour mask).
+
+    base: the house brings its own ground (b<sprite>_base.png), drawn under the shadow."""
     d = os.path.join(render_dir, f"z{zoom}")
     building = Image.open(os.path.join(d, f"b{sprite}_overlay.png")).convert("RGBA")
     catcher = Image.open(os.path.join(d, f"b{sprite}_shadow.png")).convert("RGBA")
-    out = Image.new("RGBA", building.size, SHADOW_RGB + (0,))
-    out.putalpha(catcher.getchannel("A").point(lambda a: round(a * SHADOW_ALPHA)))
+    shadow = Image.new("RGBA", building.size, SHADOW_RGB + (0,))
+    shadow.putalpha(catcher.getchannel("A").point(lambda a: round(a * SHADOW_ALPHA)))
+    if base:
+        out = Image.open(os.path.join(d, f"b{sprite}_base.png")).convert("RGBA")
+        mask = Image.open(os.path.join(d, f"b{sprite}_basemask.png")).convert("RGBA").getchannel("A")
+        out.putalpha(mask.point(lambda a: 255 if a >= 128 else 0))
+        out.alpha_composite(shadow)
+    else:
+        out = shadow
     out.alpha_composite(building)
     a = out.getchannel("A").point(lambda v: v if v >= 4 else 0)
     out.putalpha(a)
@@ -276,13 +286,16 @@ def house_blocks(house_dir, table, gfx_dir):
     buildings, grounds = hs.building_jobs(data), hs.ground_jobs(data)
     empty = (Image.new("RGBA", (1, 1), (0, 0, 0, 0)), 0, 0, Image.new("L", (1, 1), 0))
     out = []
-    for name, first, last in (("houses", 1420, 1575), ("houses_late", 4404, 4417)):
+    # Temperate and sub-arctic (1566-1569), then the houses of the other climates, which have sprite
+    # numbers of their own (between them only the snow and desert grounds 4493-4568).
+    for name, first, last in (("houses", 1420, 1575), ("houses_late", 4404, 4492), ("houses_snow", 4569, 4625),
+                              ("houses_toyland", 4627, 4676), ("houses_toyland2", 4694, 4698)):
         sprites = {}
         for z in ZOOMS:
             row = []
             for n in range(first, last + 1):
                 if n in buildings:
-                    row.append(house_sprite(house_dir, n, z, buildings[n]["rc"]))
+                    row.append(house_sprite(house_dir, n, z, buildings[n]["rc"], bool(buildings[n]["base"])))
                 elif n in grounds:
                     row.append(house_ground_sprite(house_dir, n, z))
                 else:

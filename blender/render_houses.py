@@ -1,4 +1,8 @@
-"""Render the temperate town houses (1420-1575, 4404-4417) at zoom 1x, 2x and 4x.
+"""Render the town houses of all climates at zoom 1x, 2x and 4x.
+
+Temperate 1420-1575 and 4404-4417; sub-arctic 1566-1569, 4418-4492 and 4569-4587;
+sub-tropical 4588-4625; toyland 4627-4676 and 4694-4698. The models of the other
+climates are in house_climates.py.
 
 Run:  Blender -b --factory-startup -P render_houses.py -- <outdir> [--only 1423,1442] [--part k/n]
 
@@ -13,6 +17,8 @@ _town_draw_tile_data. Per sprite and zoom:
   b<sprite>_overlay.png  colour (canvas 96z x 176z, origin (47z, 136z))
   b<sprite>_cc.png       recolour mask (white = facade parts PALETTE_TO_STRUCT_* recolours), rc sprites only
   b<sprite>_shadow.png   cast shadow on the tile (shadow catcher alpha)
+  b<sprite>_base.png / b<sprite>_basemask.png  the house's own ground (job "base"), drawn under the
+                         shadow; texture b<sprite>.png from make_house_textures.py
 Ground sprites (canvas 96z x 96z, origin (47z, 56z), like the tunnel grounds):
   g<sprite>_color.png / g<sprite>_mask.png  flat tile with the texture from make_house_textures.py
   g<sprite>_overlay.png  parts of the house standing in the ground sprite (only where the
@@ -59,8 +65,21 @@ PALETTE = {
     "leaf": ((96, 158, 72), O), "leaf_dark": ((66, 126, 80), O), "trunk": ((98, 76, 58), O),
     "lawn": ((122, 176, 84), G), "path": ((206, 196, 176), G), "flower": ((236, 120, 120), O),
     "rc": ((128, 128, 128), W),
+    # Other climates.
+    "snow": ((238, 242, 246), W), "snow_leaf": ((214, 228, 222), O), "falu": ((158, 58, 46), W),
+    "ochre": ((214, 168, 92), W), "timber": ((126, 92, 64), W), "turf": ((112, 128, 70), W),
+    "roof_red": ((168, 64, 52), W), "roof_brown": ((120, 82, 58), W), "roof_green": ((84, 128, 92), W),
+    "adobe": ((222, 186, 132), W), "terracotta": ((196, 110, 72), W), "plaster": ((244, 240, 230), W),
+    "shade": ((92, 72, 58), W), "blue_band": ((60, 110, 190), W), "pool": ((88, 180, 214), W),
+    "frond": ((78, 150, 70), O), "palm_trunk": ((150, 120, 84), O), "tin": ((168, 160, 150), W),
+    "toy_red": ((226, 70, 64), W), "toy_blue": ((66, 120, 214), W), "toy_yellow": ((244, 202, 60), W),
+    "toy_green": ((92, 170, 70), W), "toy_pink": ((240, 150, 182), W), "toy_purple": ((150, 116, 222), W),
+    "toy_orange": ((244, 146, 56), W), "toy_cream": ((246, 232, 196), W), "toy_brown": ((140, 88, 54), W),
+    "toy_ice": ((210, 236, 248), W), "toy_teal": ((70, 182, 170), W), "toy_skin": ((246, 200, 160), W),
+    "toy_black": ((54, 50, 60), W),
 }
 RC = {"rc"}  # materials PALETTE_TO_STRUCT_* recolours
+ROOFS = {"roof_tile", "roof_slate", "roof_flat", "thatch", "turf", "roof_red", "roof_brown", "roof_green"}
 
 def lerp(a, b, t):
     return a + (b - a) * t
@@ -69,8 +88,14 @@ def lerp(a, b, t):
 class Kit:
     """Collects closed solids as (material, bmesh) in OpenTTD units."""
 
-    def __init__(self):
+    def __init__(self, snow=False):
         self.parts = []
+        self.snow = snow  # every roof under snow, bushes frosted
+
+    def _m(self, mat):
+        if self.snow:
+            return "snow" if mat in ROOFS else "snow_leaf" if mat in ("leaf", "leaf_dark") else mat
+        return mat
 
     # --- primitives -----------------------------------------------------------------
 
@@ -83,7 +108,7 @@ class Kit:
             except ValueError:
                 pass
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-        self.parts.append((mat, bm))
+        self.parts.append((self._m(mat), bm))
 
     def box(self, x0, x1, y0, y1, z0, z1, mat):
         if x1 <= x0 or y1 <= y0 or z1 <= z0:
@@ -125,7 +150,7 @@ class Kit:
         bmesh.ops.create_icosphere(bm, subdivisions=subdiv, radius=1.0)
         for v in bm.verts:
             v.co = Vector((cx + v.co.x * rx, cy + v.co.y * ry, cz + v.co.z * rz))
-        self.parts.append((mat, bm))
+        self.parts.append((self._m(mat), bm))
 
     # --- building parts ---------------------------------------------------------------
 
@@ -236,6 +261,67 @@ class Kit:
 
     def bush(self, x, y, r, mat="leaf"):
         self.blob(x, y, r * 0.55, r, r, r * 0.75, mat, subdiv=1)
+
+    def beam(self, p0, p1, w, t, mat):
+        """Flat bar from p0 to p1 (x, y, z), w wide (horizontally across it) and t thick."""
+        p0, p1 = Vector(p0), Vector(p1)
+        d = p1 - p0
+        side = Vector((-d.y, d.x, 0))
+        side = side.normalized() * (w / 2) if side.length > 1e-6 else Vector((w / 2, 0, 0))
+        up = d.cross(side).normalized() * (t / 2)
+        v = [tuple(p + a * side + b * up) for p in (p0, p1) for a, b in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+        self._solid(v, [(0, 1, 2, 3), (4, 7, 6, 5), (0, 4, 5, 1), (1, 5, 6, 2), (2, 6, 7, 3), (3, 7, 4, 0)], mat)
+
+    def palm(self, x, y, h=12.0, s=1.0, lean=(0.6, 0.4)):
+        """Palm: a slightly leaning ringed trunk and a crown of drooping fronds."""
+        top = (x + lean[0] * s, y + lean[1] * s, h * s)
+        steps = 5
+        for i in range(steps):
+            t0, t1 = i / steps, (i + 1) / steps
+            p0 = (x + lean[0] * s * t0 ** 2, y + lean[1] * s * t0 ** 2, h * s * t0)
+            p1 = (x + lean[0] * s * t1 ** 2, y + lean[1] * s * t1 ** 2, h * s * t1)
+            self.cyl(p0[0], p0[1], 0.42 * s * (1 - 0.25 * t0), p0[2], p1[2] + 0.1, "palm_trunk", n=6,
+                     r_top=0.36 * s * (1 - 0.25 * t1))
+        for i in range(8):
+            a = i * math.tau / 8 + 0.3
+            ca, sa = math.cos(a), math.sin(a)
+            mid = (top[0] + ca * 2.4 * s, top[1] + sa * 2.4 * s, top[2] + 0.9 * s)
+            tip = (top[0] + ca * 4.6 * s, top[1] + sa * 4.6 * s, top[2] - 1.6 * s)
+            self.beam(top, mid, 1.3 * s, 0.25, "frond")
+            self.beam(mid, tip, 1.0 * s, 0.25, "frond")
+        self.blob(*top, 0.7 * s, 0.7 * s, 0.6 * s, "palm_trunk")
+
+    def arches(self, face, at, a0, a1, z0, h, n, w=None, mat="shade", out=0.12):
+        """n round-headed openings on the +x (face "x", wall at x = at) or +y wall, spread over a0-a1."""
+        pitch = (a1 - a0) / n
+        w = w or pitch * 0.6
+        for i in range(n):
+            c = a0 + pitch * (i + 0.5)
+            r = w / 2
+            prof = [(c - r, z0), (c + r, z0)] + [(c + r * math.cos(t), z0 + h - r + r * math.sin(t))
+                                                 for t in (j * math.pi / 6 for j in range(7))] + [(c - r, z0)]
+            prof = prof[:-1]
+            self.extrude(prof, face, at - 0.05, at + out, mat)
+
+    def water_tank(self, x, y, z0, r=1.6, legs=4.0, h=3.0, mat="tin"):
+        for dx, dy in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
+            self.box(x + dx * r * 0.6 - 0.15, x + dx * r * 0.6 + 0.15, y + dy * r * 0.6 - 0.15,
+                     y + dy * r * 0.6 + 0.15, z0, z0 + legs, "metal")
+        self.cyl(x, y, r, z0 + legs, z0 + legs + h, mat, n=12)
+        self.cyl(x, y, r * 1.05, z0 + legs + h, z0 + legs + h + 1.0, mat, n=12, r_top=0.2)
+
+    def dormer(self, face, at, pos, z, w=1.8, h=2.0, wall="white", roof="roof_slate"):
+        """Gabled dormer window standing out of a roof slope towards +x or +y, its front at x/y = at."""
+        if face == "x":
+            self.box(at - 2.2, at, pos - w / 2, pos + w / 2, z, z + h, wall)
+            self.box(at - 0.05, at + 0.1, pos - w / 2 + 0.35, pos + w / 2 - 0.35, z + 0.3, z + h - 0.2, "glass")
+            self.gable(at - 2.2, at, pos - w / 2, pos + w / 2, z + h, z + h + w * 0.55, "x", roof, wall, over=0.2,
+                       thick=0.3)
+        else:
+            self.box(pos - w / 2, pos + w / 2, at - 2.2, at, z, z + h, wall)
+            self.box(pos - w / 2 + 0.35, pos + w / 2 - 0.35, at - 0.05, at + 0.1, z + 0.3, z + h - 0.2, "glass")
+            self.gable(pos - w / 2, pos + w / 2, at - 2.2, at, z + h, z + h + w * 0.55, "y", roof, wall, over=0.2,
+                       thick=0.3)
 
     # --- height of all geometry ------------------------------------------------------
 
@@ -788,7 +874,7 @@ def mall(k):
         k.box(x - 0.2, x + 0.2, y - 0.2, y + 0.2, 0, 9, "white")
 
 
-MODEL_FUNCS = {
+_TEMPERATE_FUNCS = {
     "office_tall_a": tall_office_a, "office_tall_b": tall_office_b, "office_gable": office_gable,
     "flats_small": flats_small, "church": church, "office_lift": office_lift, "house_a": house_a,
     "bungalow": bungalow, "hotel": hotel, "statue": statue, "fountain": fountain, "park_pond": park_pond,
@@ -800,6 +886,8 @@ MODEL_FUNCS = {
     "shops_hip": shops_hip, "shops_two": shops_two, "gold_tower": gold_tower, "theatre": theatre,
     "round_tower": round_tower, "cinema": cinema, "stadium1": stadium1, "stadium2": stadium2, "mall": mall,
 }
+import house_climates  # noqa: E402  (needs the kit above)
+MODEL_FUNCS = {**_TEMPERATE_FUNCS, **house_climates.MODEL_FUNCS}
 
 
 # --- construction stages ----------------------------------------------------------------
@@ -827,6 +915,37 @@ def scaffold(k, foot, top):
             k.box(x1 + 0.25, x1 + 0.4, y0, y1 + 0.4, z + 1.8, z + 2.0, "metal")
             k.box(x0, x1 + 0.4, y1 + 0.25, y1 + 0.4, z + 1.8, z + 2.0, "metal")
             z += 6
+
+
+GIFT_PAPER = ("toy_blue", "toy_yellow", "toy_purple", "toy_pink", "toy_green", "toy_orange", "toy_red")
+
+
+def gift_box(k, foot, top, model, opened=False):
+    """Toyland construction: the house delivered in a gift box, closed, or opened with the walls folded down."""
+    x0 = min(min(f[0] for f in foot) - 0.6, 2.5)
+    y0 = min(min(f[1] for f in foot) - 0.6, 2.5)
+    x1 = max(max(f[2] for f in foot) + 0.6, 13.5)
+    y1 = max(max(f[3] for f in foot) + 0.6, 13.5)
+    paper = GIFT_PAPER[sum(map(ord, model)) % len(GIFT_PAPER)]
+    ribbon = "toy_red" if paper != "toy_red" else "toy_yellow"
+    h = min(max(top * 0.6, 10), 36)
+    xm, ym = (x0 + x1) / 2, (y0 + y1) / 2
+    if not opened:
+        k.box(x0, x1, y0, y1, 0, h, paper)
+        k.box(xm - 0.7, xm + 0.7, y0 - 0.06, y1 + 0.06, -0.01, h + 0.08, ribbon)
+        k.box(x0 - 0.06, x1 + 0.06, ym - 0.7, ym + 0.7, -0.01, h + 0.08, ribbon)
+        for a in (0.6, -0.6):  # the bow: two loops and the knot
+            k.blob(xm + a * 1.4, ym - a * 1.4, h + 1.0, 1.4, 1.4, 0.9, ribbon)
+        k.blob(xm, ym, h + 0.6, 0.6, 0.6, 0.6, ribbon)
+        return
+    # Opened: the four walls lie flat round the house; the lid leans against the back.
+    t = 0.3
+    k.box(x1, min(x1 + h * 0.35, 16), y0, y1, 0, t, paper)
+    k.box(x0, x1, y1, min(y1 + h * 0.35, 16), 0, t, paper)
+    k.box(xm - 0.5, xm + 0.5, y1, min(y1 + h * 0.35, 16), 0, t + 0.05, ribbon)
+    k.box(x1, min(x1 + h * 0.35, 16), ym - 0.5, ym + 0.5, 0, t + 0.05, ribbon)
+    k.box(x0 - 0.5, x0, y0, y1, 0, h * 0.25, paper)
+    k.box(x0, x1, y0 - 0.5, y0, 0, h * 0.25, paper)
 
 
 def frange(a, b, step):
@@ -912,17 +1031,24 @@ def render(scene, path):
     bpy.ops.render.render(write_still=True)
 
 
-def model_parts(model, tile_part=None, kind="final", level=1.0):
+def model_parts(model, tile_part=None, kind="final", level=1.0, toy=False):
     """Solids of a model in house coordinates; tile_part (tx, ty) cuts out one tile of a multi-tile house."""
-    k = Kit()
+    name, _, snow = model.partition("@")
+    k = Kit(snow=bool(snow))
     if model == "lift":
         lift_cabin(k)
         return k.parts
-    foot = hs.MODELS[model]["foot"]
-    if kind == "found":
+    foot = hs.MODELS[name]["foot"]
+    if toy and kind != "final":
+        MODEL_FUNCS[name](k)
+        top = k.top()
+        if kind == "found":
+            k.parts = []
+        gift_box(k, foot, top, name, opened=kind == "partial")
+    elif kind == "found":
         foundations(k, foot)
     else:
-        MODEL_FUNCS[model](k)
+        MODEL_FUNCS[name](k)
         if kind == "partial":
             top = k.top() * level
             k.parts = clip_parts(k.parts, ztop=top)
@@ -950,10 +1076,20 @@ def render_building(outdir, sprite, job):
     tile = hs.TILE_OFFSET.get(job["tile"], (0, 0)) if job["model"] in hs.MULTI.values() else None
     t = tile or (0, 0)
     shift = (t[0] * 16 + job["anchor"][0], t[1] * 16 + job["anchor"][1])
-    parts = model_parts(job["model"], tile, job["kind"], job["level"])
-    whole = model_parts(job["model"], None, job["kind"], job["level"]) if tile else parts
+    parts = model_parts(job["model"], tile, job["kind"], job["level"], job.get("toy", False))
+    whole = model_parts(job["model"], None, job["kind"], job["level"], job.get("toy", False)) if tile else parts
     for zoom in ZOOMS:
         zdir = os.path.join(outdir, f"z{zoom}")
+        if job.get("base"):
+            scene = new_scene(zoom, BUILD_W, BUILD_H, BUILD_ANCHOR)
+            obj = rg.build_tile(0, rg.COLOR_OVERSCAN)
+            obj.data.materials.append(st.toon_material("g", image_path=os.path.join(TEX, f"b{sprite}.png"),
+                                                       params=st.GROUND, extension="EXTEND"))
+            render(scene, os.path.join(zdir, f"b{sprite}_base.png"))
+            scene = new_scene(zoom, BUILD_W, BUILD_H, BUILD_ANCHOR, samples=16)
+            scene.cycles.filter_width = 0.01
+            rg.build_tile(0, 1.0).data.materials.append(rg.mask_material())
+            render(scene, os.path.join(zdir, f"b{sprite}_basemask.png"))
         scene = new_scene(zoom, BUILD_W, BUILD_H, BUILD_ANCHOR)
         link_parts(parts, shift, Materials("color", job["rc"]))
         render(scene, os.path.join(zdir, f"b{sprite}_overlay.png"))
