@@ -297,7 +297,12 @@ font completes the look, e.g. in `openttd.cfg` under `[misc]`:
 `nml/modern_gui.grf` is a separate NewGRF for interface graphics; it holds the
 title screen logo, set by `tools/make_logo.py`, and the 36 main toolbar icons
 plus the minimap buttons, flat symbols in the colours of the set drawn by
-`tools/make_icons.py`. In the modern style the toolbar's red separators are
+`tools/make_icons.py`. `tools/make_gui_icons.py` draws the other interface
+sprites in the same style: the rail, road, tram, water, air and landscaping
+toolbars with their cursors, the signal window, the vehicle, depot and group
+buttons, the window glyphs (scroll and dropdown arrows, pin, shade, resize,
+check boxes), cargo icons and small status icons. Each keeps the size and
+offset of its OpenGFX original, so layouts and cursor hotspots stay put. In the modern style the toolbar's red separators are
 dark slate. The title game tries
 `baseset/opntitle_modern.dat` first, a town scene that needs Modern Terrain
 and Modern Interface enabled for new games; without them the default
@@ -306,6 +311,7 @@ and Modern Interface enabled for new games; without them the default
 ```sh
 .venv/bin/python tools/make_logo.py render/logo
 .venv/bin/python tools/make_icons.py render/icons
+.venv/bin/python tools/make_gui_icons.py render/gui_icons
 .venv/bin/python tools/pack_gui_grf.py render nml           # -> nml/modern_gui.grf
 SEED=3 tools/title_save.sh title                           # -> shots/title.sav, copy to ../media/baseset/opntitle_modern.dat
 tools/gui_shot.sh classic game game_classic                # rail toolbar, town and finance windows
@@ -313,6 +319,10 @@ TITLE=shots/title.sav tools/gui_shot.sh modern title title_modern
 .venv/bin/python tools/gui_compare.py shots/game_classic.png shots/game_modern.png shots/cmp_game.png
 ```
 
+`tools/gui_icons_shot.sh` shoots several window sets in one game, e.g.
+`tools/gui_icons_shot.sh modern icons rail:build_rail,build_signals depot:depot,vehicle`.
+
 The shots use two console commands of the fork: `show_window <name>` opens a
-window from a script, and `schedule in-5-seconds <script>` runs a script after
+window from a script (`depot`, `vehicle` and `orders` first build a depot with
+a train next to the largest town; `close_all` closes the open windows), and `schedule in-5-seconds <script>` runs a script after
 a few seconds of real time, also on the title screen.
