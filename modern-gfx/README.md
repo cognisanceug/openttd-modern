@@ -52,6 +52,7 @@ Currently covered (temperate; trees in all climates):
 | 2727–2732, 693 | docks (quay deck at land height on piles, crane and containers on the water part) and the buoy (also the build-buoy toolbar icon, as in the original) |
 | 2096–2105 | oil rig: one model cut into three screen-column slices, with its construction stages |
 | 2011–2183, 2293–2340 | temperate industries: coal mine, power station, sawmill, forest, oil refinery, factory, printing works, steel mill, farm, oil wells, bank, iron ore mine; all construction stages and animation frames |
+| 3669–3700 | ships: oil tanker, cargo ship, passenger ferry, hovercraft, 8 directions each, company colour on hulls, bands and funnels; in toyland a toy cargo boat loaded with building blocks and a toy paddle steamer replace the cargo ship and ferry (see *Vehicles*) |
 
 Every sprite ships as 8bpp fallback plus 32bpp at 1x, 2x and 4x.
 
@@ -113,6 +114,10 @@ $B -b --factory-startup -P blender/render_objects.py -- render/objects
 $B -b --factory-startup -P blender/render_industries.py -- render/industries   # [--only 2013,2150] [--part k/n]
 .venv/bin/python tools/make_airport_textures.py render/textures render/textures/airport 512   # needs numpy
 $B -b --factory-startup -P blender/render_airports.py -- render/airports   # [--only b2651,g2645,rig] [--part k/n]
+.venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfx1_base.grf 3669 3700 ref/ships            # reference only
+.venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfxt_toyland.grf 401 416 ref/ships_toyland  # toyland 0xE5D-0xE6C
+$B -b --factory-startup -P blender/render_vehicles.py -- render/vehicles   # [--only tanker,toyferry]
+.venv/bin/python tools/preview_vehicles.py render /tmp/ships.png 4   # placed as in game, next to OpenGFX
 .venv/bin/python tools/check_calibration.py render/ground ref/ground
 .venv/bin/python tools/preview_tiling.py render/ground ref/ground render/preview_rocky_area.png rocky 2 12   # big area, variants as in game
 # toyland variants of the sprites with grass (GFX_GRASS=toy reads render/textures/toyland first, toy_grass for grass)
@@ -151,6 +156,8 @@ tools/industry_shot.sh industry_4x   # IndustryTest builds HQ, statue, owned lan
 tools/airport_shot.sh airport_4x     # AirportTest builds every airport type, docks in four directions, buoys and an oil rig
 CLIMATE=toyland CFG=infra_future tools/infra_shot.sh toyland_infra_4x   # CLIMATE= generates any of the above in another climate
 CLIMATE=toyland tools/airport_shot.sh toyland_airport_4x                # (toyland: rails, roads, tunnels, airports on the toyland meadow)
+tools/ship_shot.sh ships_4x          # ShipTest digs a pond with a depot and buoys and buys every ship twice (1990, never expire)
+CLIMATE=toyland tools/ship_shot.sh toyland_ships_4x
 ```
 
 Most render scripts take `--only prefix,prefix` to re-render a subset.
@@ -301,6 +308,28 @@ from sprite 693, which is also the toolbar icon. The oil rig is modelled once ov
 its 2×3 tiles; as in the original only the three tiles of the x = 1 row draw it,
 each the screen-column slice x − y ≥ 16, 0–16 or < 0 of the model, so the slices
 meet without overlap. The helideck sits where helicopters land (31, 9, z 54).
+
+## Vehicles
+
+`blender/render_vehicles.py` builds each vehicle once from the kit, in vehicle units
+(bow towards +a, z up from the vehicle's z_pos, for ships the water line), and turns it
+to the 8 directions of the `Direction` enum (sprite = base + direction). The game draws
+a vehicle sprite at `RemapCoords(pos + bounds.origin)`, where `bounds` is set per
+direction in `UpdateDeltaXY()` (ships: (-16, -3) along x, (-3, -16) along y, (-3, -3)
+diagonally); the renders put the vehicle position at a fixed canvas point and
+`render/vehicles/meta.json` stores the canvas pixel of that sprite origin per direction
+and zoom, so `tools/pack_vehicles.py` gets the offsets from the crop box. Ships sit on
+their path: hull centred on the vehicle position, water line at z_pos (the OpenGFX
+sprites along the x axis are a few pixels off their path). Other vehicle types only
+need their bounds and canvas in `TYPES` and models in `MODELS`.
+
+Ships use four base sprite sets (`_ship_sprites` in `ship_cmd.cpp`): tanker 0xE55,
+cargo ship 0xE5D, ferry 0xE65, hovercraft 0xE6D; the two engines of each kind share
+one. Toyland's base graphics load their own cargo ship and ferry into 0xE5D–0xE6C, so a
+climate block replaces them again with the toy models (a red tub with building blocks
+and a toy wheelhouse; a paddle steamer with striped funnels). Hulls, hull bands and
+funnel bands carry the company-colour mask (index 202). Ships have no cast shadow:
+the same sprites are drawn in the depot and vehicle windows.
 
 ## Trees
 
