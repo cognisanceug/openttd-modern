@@ -19,10 +19,12 @@ meets its neighbours without a seam. Colours follow the map study:
   stone    dressed stone courses for foundation walls (U per tile, V per height level)
   riverbank0-11  RGBA river bank pieces (sides, outer and inner corners), see make_river_banks()
   canaldike0-11  RGBA canal edge pieces in the same order: stone quay with coping, see make_canal_dikes()
+  toyland/riverbank0-11, toyland/canaldike0-11  the same with the toyland meadow
 The grass-growth stages share one coverage field, so grass regrows in place.
 Low-frequency variation stays gentle because one sprite repeats on every tile.
 
-Usage: make_ground_textures.py <outdir> [size] [--toyland]   (--toyland: only the toy_* textures)
+Usage: make_ground_textures.py <outdir> [size] [--toyland]   (--toyland: only the toy_* textures and
+       the toyland banks; needs sand.png and stone.png from a full run)
 """
 
 import os
@@ -97,6 +99,7 @@ def main():
     os.makedirs(outdir, exist_ok=True)
     if "--toyland" in sys.argv:
         make_toyland(outdir, size)
+        make_toyland_banks(outdir, size)
         return
 
     grass_rgb = make_grass(size)
@@ -185,6 +188,22 @@ def main():
 
     make_river_banks(outdir, size, grass, sand)
     make_canal_dikes(outdir, size, grass, stone)
+    make_toyland_banks(outdir, size)
+
+
+def make_toyland_banks(outdir, size):
+    """River banks and canal dikes with the toyland meadow, into <outdir>/toyland."""
+    import numpy as np
+
+    def sampler(name):
+        img = np.asarray(Image.open(os.path.join(outdir, name)).convert("RGB").resize((size, size)), float)
+        return lambda x, y: img[y, x].tolist()
+
+    toy_dir = os.path.join(outdir, "toyland")
+    os.makedirs(toy_dir, exist_ok=True)
+    toy_grass = sampler("toy_grass.png")
+    make_river_banks(toy_dir, size, toy_grass, sampler("sand.png"))
+    make_canal_dikes(toy_dir, size, toy_grass, sampler("stone.png"))
 
 
 # Rough and rocky land come in variants that the game picks per tile (rocky

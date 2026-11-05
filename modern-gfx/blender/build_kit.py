@@ -455,7 +455,7 @@ def ground_material(base):
     if base in PALETTE:
         rgb, params = PALETTE[base]
         return st.toon_material(base, rgb, params=G)
-    return st.toon_material(base, image_path=os.path.join(TEX, base + ".png"), params=G)
+    return st.toon_material(base, image_path=st.texture(base), params=G)
 
 
 def render_ground(outdir, name, base, decals=(), shift=(0, 0), props=(), cc=(), fixed=False):

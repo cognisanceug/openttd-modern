@@ -18,7 +18,6 @@ import ottd_camera as oc  # noqa: E402
 import render_ground as rg  # noqa: E402
 import style as st  # noqa: E402
 
-INFRA_TEX = os.path.join(rg.TEXTURES, "infra")
 # Bridge road-bits offset -> slope: flat Y, flat X, ramps NE, SE, SW, NW.
 DECK_SLOPES = (0, 0, 12, 6, 3, 9)
 # One-way markers: slope set (flat, ONEWAY_SLOPE_N, ONEWAY_SLOPE_S) -> slope for road X, road Y.
@@ -45,7 +44,7 @@ def main():
     for name, slope, overlay in jobs():
         if only and not name.startswith(only):
             continue
-        path = os.path.join(INFRA_TEX, f"{name}.png")
+        path = st.texture(f"infra/{name}")
         for zoom in rg.ZOOMS:
             size = 64 * zoom
             zdir = os.path.join(outdir, f"z{zoom}")

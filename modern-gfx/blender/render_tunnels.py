@@ -32,10 +32,9 @@ import render_ground as rg  # noqa: E402
 
 ZOOMS = (1, 2, 4)
 CANVAS, ANCHOR_Y = 96, 56
-TEX = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "render", "textures")
 STONE = (176, 168, 150)
 MOUTH = (28, 30, 34)
-MOUND = (122, 176, 84)
+MOUND = (113, 183, 88) if st.GRASS == "toy" else (122, 176, 84)  # toy: scaled like toy_grass to grass
 
 DIRS = ("NE", "SE", "SW", "NW")
 SLOPE = {"NE": 12, "SE": 6, "SW": 3, "NW": 9}
@@ -207,7 +206,7 @@ def main():
                 scene = new_scene(zoom)
                 obj = rg.build_tile(SLOPE[d], rg.COLOR_OVERSCAN)
                 obj.data.materials.append(st.toon_material(
-                    "g", image_path=os.path.join(TEX, GROUND_TEX[kind, axis] + ".png"), params=st.GROUND,
+                    "g", image_path=st.texture(GROUND_TEX[kind, axis]), params=st.GROUND,
                     extension="EXTEND"))
                 render(scene, os.path.join(zdir, f"tun{ground_id}_ground_color.png"))
                 scene = new_scene(zoom)

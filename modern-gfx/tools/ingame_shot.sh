@@ -10,6 +10,8 @@
 #   infra   like modern, runs the InfraTest game script and autosaves every minute
 #           (see tools/infra_shot.sh)
 #   LOAD    load this savegame instead of generating a map
+#   CLIMATE=toyland (or arctic, tropic) generates the map in that climate; it passes through
+#               infra_shot.sh, water_shot.sh and airport_shot.sh, so their test scripts build there.
 #   SHOT=big renders at the max zoom-in (4x), SHOT=normal always at 1x.
 #   ZOOM=2 caps the zoom-in at 2x, so SHOT=big shows the 2x sprites.
 #   The view cannot be scrolled from the start script (the viewport is placed
@@ -23,6 +25,7 @@ H="$PWD/test-home"
 T="$H/Documents/OpenTTD"
 mkdir -p "$T/baseset" "$T/newgrf" "$T/scripts" "$T/screenshot"
 cp test-config/*.cfg "$T/"
+[ -n "$CLIMATE" ] && perl -0pi -e "s/\\[game_creation\\]\\n/[game_creation]\\nlandscape = $CLIMATE\\n/" "$T/$1.cfg"
 [ "${ZOOM:-4}" = 2 ] && sed -i '' 's/^zoom_min = 0/zoom_min = 1/' "$T/$1.cfg"
 rm -rf "$T/game" && cp -R test-config/game "$T/game"
 [ -f "$T/baseset/opengfx-8.0.tar" ] || cp "$HOME/Documents/OpenTTD/baseset/opengfx-8.0.tar" "$T/baseset/"
