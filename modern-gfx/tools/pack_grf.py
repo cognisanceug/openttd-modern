@@ -81,8 +81,8 @@ shadow under it (and under that the house's own ground where it has one),
 recolourable facades carry a structure recolour mask; grounds are the flat tile, with house parts laid over
 it where the original draws the house in the ground sprite. The lift (1443) is
 a child sprite placed relative to the top-left corner of the office block
-sprite (1442), so its offsets are taken from that sprite's crop. Unused
-sprites in the range (1438, 1439, 1566-1569) are empty.
+sprite (1442), so its offsets are taken from that sprite's crop. 1438 and 1439 are
+the church recolour sprites and are left out.
 
 Monorail and maglev (guideway_blocks): tracks 1087-1118 / 1169-1200, crossings 1382-1405,
 depots and stations 1145-1168 / 1227-1250 from the rail renders, tunnels 2373-2388 and
@@ -293,8 +293,9 @@ def house_blocks(house_dir, table, gfx_dir):
     empty = (Image.new("RGBA", (1, 1), (0, 0, 0, 0)), 0, 0, Image.new("L", (1, 1), 0))
     out = []
     # Temperate and sub-arctic (1566-1569), then the houses of the other climates, which have sprite
-    # numbers of their own (between them only the snow and desert grounds 4493-4568).
-    for name, first, last in (("houses", 1420, 1575), ("houses_late", 4404, 4492), ("houses_snow", 4569, 4625),
+    # numbers of their own (between them only the snow and desert grounds 4493-4568). 1438 and 1439
+    # are the recolour sprites PALETTE_CHURCH_RED and _CREAM, so they stay as they are.
+    for name, first, last in (("houses", 1420, 1437), ("houses_b", 1440, 1575), ("houses_late", 4404, 4492), ("houses_snow", 4569, 4625),
                               ("houses_toyland", 4627, 4676), ("houses_toyland2", 4694, 4698)):
         sprites = {}
         for z in ZOOMS:
@@ -767,7 +768,7 @@ def main():
     nml += pack_vehicles.road_vehicle_blocks(render_dir, gfx_dir, sheet_block)
     nml += pack_vehicles.effect_blocks(render_dir, gfx_dir, sheet_block)
     nml.append(toyland_grass_blocks(render_dir, grass_meta, gfx_dir))
-    open(os.path.join(nml_dir, "modern_terrain.nml"), "w").write("\n".join(nml))
+    open(os.path.join(nml_dir, "moderngfx.nml"), "w").write("\n".join(nml))
 
     os.makedirs(os.path.join(nml_dir, "lang"), exist_ok=True)
     open(os.path.join(nml_dir, "lang", "english.lng"), "w").write(
@@ -776,7 +777,7 @@ def main():
         "STR_GRF_DESC :Modern low-poly 32bpp graphics rendered in Blender, in every climate: terrain, water, trees, transport infrastructure, airports and docks, towns, industries and vehicles. Licence: GPL v2.\n"
     )
     nmlc = os.path.join(os.path.dirname(sys.executable), "nmlc")
-    subprocess.run([nmlc, "-c", "--grf", "modern_terrain.grf", "modern_terrain.nml"], cwd=nml_dir, check=True)
+    subprocess.run([nmlc, "-c", "--grf", "moderngfx.grf", "moderngfx.nml"], cwd=nml_dir, check=True)
 
 
 if __name__ == "__main__":

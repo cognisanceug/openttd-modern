@@ -1,6 +1,6 @@
-"""Pack the interface graphics into nml/modern_gui.grf.
+"""Pack the interface graphics into nml/moderngfx_gui.grf.
 
-A separate NewGRF from modern_terrain.grf, so the interface can be built and
+A separate NewGRF from moderngfx.grf, so the interface can be built and
 enabled on its own. It holds the title screen logo, one sprite per letter
 (tools/make_logo.py): T 4836, n 4839, p 4841, O 4842 in the base set, e and D
 in the OpenTTD GUI block (OTTD_GUI 12, 13); the main toolbar and build menu
@@ -159,7 +159,7 @@ def main():
     for name, header, keys in gui_blocks():
         nml.append(sheet_block(name, header, keys, {z: [gui_sprite(gui_dir, k, z) for k in keys] for z in ZOOMS},
                                gfx_dir))
-    open(os.path.join(nml_dir, "modern_gui.nml"), "w").write("\n".join(nml))
+    open(os.path.join(nml_dir, "moderngfx_gui.nml"), "w").write("\n".join(nml))
 
     lang_dir = os.path.join(nml_dir, "lang_gui")
     os.makedirs(lang_dir, exist_ok=True)
@@ -169,7 +169,7 @@ def main():
         "STR_GUI_GRF_DESC :Interface graphics matching ModernGFX: the title screen logo, toolbar, build menu and window icons and cursors. Licence: GPL v2.\n"
     )
     nmlc = os.path.join(os.path.dirname(sys.executable), "nmlc")
-    subprocess.run([nmlc, "-c", "--lang-dir", "lang_gui", "--grf", "modern_gui.grf", "modern_gui.nml"],
+    subprocess.run([nmlc, "-c", "--lang-dir", "lang_gui", "--grf", "moderngfx_gui.grf", "moderngfx_gui.nml"],
                    cwd=nml_dir, check=True)
 
 
