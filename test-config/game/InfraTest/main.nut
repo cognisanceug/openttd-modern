@@ -4,6 +4,21 @@ class InfraTest extends GSController {
 
 function T(x, y) { return GSMap.GetTileIndex(x, y); }
 
+function BuildTunnelNear(vt, cx, cy)
+{
+	for (local r = 2; r < 14; r++) {
+		for (local dx = -r; dx <= r; dx++) {
+			for (local dy = -r; dy <= r; dy++) {
+				local t = T(cx + dx, cy + dy);
+				local sl = GSTile.GetSlope(t);
+				if ((sl == GSTile.SLOPE_NE || sl == GSTile.SLOPE_SE || sl == GSTile.SLOPE_SW || sl == GSTile.SLOPE_NW) &&
+						GSTunnel.BuildTunnel(vt, t)) return;
+			}
+		}
+	}
+	GSLog.Warning("tunnel not built");
+}
+
 function Check(what, ok)
 {
 	if (!ok) GSLog.Warning(what + " failed: " + GSError.GetLastErrorString());
@@ -77,22 +92,8 @@ function InfraTest::Start()
 	}
 
 	/* One rail and one road tunnel on the nearest inclined slopes. */
-	local kinds = [GSVehicle.VT_RAIL, GSVehicle.VT_ROAD];
-	foreach (vt in kinds) {
-		local done = false;
-		for (local r = 2; r < 14 && !done; r++) {
-			for (local dx = -r; dx <= r && !done; dx++) {
-				for (local dy = -r; dy <= r && !done; dy++) {
-					local t = T(cx + dx, cy + dy);
-					local sl = GSTile.GetSlope(t);
-					if (sl == GSTile.SLOPE_NE || sl == GSTile.SLOPE_SE || sl == GSTile.SLOPE_SW || sl == GSTile.SLOPE_NW) {
-						done = GSTunnel.BuildTunnel(vt, t);
-					}
-				}
-			}
-		}
-		if (!done) GSLog.Warning("tunnel not built");
-	}
+	BuildTunnelNear(GSVehicle.VT_RAIL, cx, cy);
+	BuildTunnelNear(GSVehicle.VT_ROAD, cx, cy);
 
 	/* A rail station north of the test layout; the game picks platform, building and roof tiles. */
 	local built = false;
@@ -127,6 +128,28 @@ function InfraTest::Start()
 		Check("tram curve", GSRoad.BuildRoad(T(cx + 6, cy + 1), T(cx + 9, cy + 1)));
 	} else {
 		GSLog.Warning("no tram road type");
+	}
+
+	/* Monorail (rail type 2) and maglev (3), when available (infra_future.cfg starts late enough):
+	 * a line with a junction, a level crossing, a depot, a station, a bridge and a tunnel each. */
+	GSRoad.SetCurrentRoadType(GSRoad.ROADTYPE_ROAD);
+	foreach (rt in [2, 3]) {
+		if (!GSRail.IsRailTypeAvailable(rt)) continue;
+		GSRail.SetCurrentRailType(rt);
+		/* South-east of the centre, inside the area the big screenshot covers. */
+		local y = rt == 2 ? cy + 12 : cy + 16;
+		Check("guideway line", GSRail.BuildRail(T(cx + 5, y), T(cx + 6, y), T(cx + 11, y)));
+		Check("guideway junction", GSRail.BuildRailTrack(T(cx + 7, y), GSRail.RAILTRACK_NW_NE));
+		Check("guideway curve", GSRail.BuildRailTrack(T(cx + 7, y - 1), GSRail.RAILTRACK_SW_SE));
+		Check("guideway depot", GSRail.BuildRailDepot(T(cx + 6, y - 1), T(cx + 6, y)));
+		Check("guideway station", GSRail.BuildRailStation(T(cx + 8, y + 1), GSRail.RAILTRACK_NE_SW, 1, 3, GSStation.STATION_NEW));
+		Check("guideway crossing", GSRoad.BuildRoad(T(cx + 11, y - 1), T(cx + 11, y + 1)));
+		local built = false;
+		while (!built && row < cy + 22) {
+			built = GSBridge.BuildBridge(GSVehicle.VT_RAIL, rt == 2 ? 4 : 10, T(cx - 3, row), T(cx + 3, row));
+			row++;
+		}
+		BuildTunnelNear(GSVehicle.VT_RAIL, cx, cy);
 	}
 
 	GSLog.Info("InfraTest done");

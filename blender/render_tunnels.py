@@ -1,6 +1,6 @@
-"""Render the rail and road tunnel portals (2365-2372, 2389-2396) at zoom 1x, 2x and 4x.
+"""Render the rail, monorail, maglev and road tunnel portals (2365-2396) at zoom 1x, 2x and 4x.
 
-Run:  Blender -b --factory-startup -P render_tunnels.py -- <outdir>
+Run:  Blender -b --factory-startup -P render_tunnels.py -- <outdir> [--only rail,mono,mglv,road]
 
 Per direction (NE, SE, SW, NW = the way the tunnel leads into the hill) the game
 draws a ground sprite (base + 2 * dir) and a front sprite (base + 2 * dir + 1)
@@ -41,8 +41,10 @@ DIRS = ("NE", "SE", "SW", "NW")
 SLOPE = {"NE": 12, "SE": 6, "SW": 3, "NW": 9}
 # Unit vectors in OpenTTD tile units: u into the hill, v across.
 INTO = {"NE": (-1, 0), "SE": (0, 1), "SW": (1, 0), "NW": (0, -1)}
-SPRITES = {"rail": 2365, "road": 2389}
+SPRITES = {"rail": 2365, "mono": 2373, "mglv": 2381, "road": 2389}
 GROUND_TEX = {("rail", "X"): "infra/rail1012", ("rail", "Y"): "infra/rail1011",
+              ("mono", "X"): "infra/mono1094", ("mono", "Y"): "infra/mono1093",
+              ("mglv", "X"): "infra/mglv1176", ("mglv", "Y"): "infra/mglv1175",
               ("road", "X"): "infra/road1333", ("road", "Y"): "infra/road1332"}
 
 
@@ -191,7 +193,10 @@ def main():
     outdir = argv[0] if argv else os.path.join(os.getcwd(), "render", "tunnels")
     for zoom in ZOOMS:
         os.makedirs(os.path.join(outdir, f"z{zoom}"), exist_ok=True)
+    only = argv[argv.index("--only") + 1].split(",") if "--only" in argv else list(SPRITES)
     for kind, base in SPRITES.items():
+        if kind not in only:
+            continue
         for di, d in enumerate(DIRS):
             ground_id, front_id = base + 2 * di, base + 2 * di + 1
             axis = "X" if d in ("NE", "SW") else "Y"
