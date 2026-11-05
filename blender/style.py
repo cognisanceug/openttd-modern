@@ -2,7 +2,7 @@
 
 Lighting is not physically simulated. Like the map study, every surface gets
 its base colour multiplied by a brightness derived from its normal:
-    lum = clamp(1 + gain * (dot(N, L) / L.z - 1), lo, hi)
+    lum = clamp(1 + gain * (dot(N, L) / L.z - 1) + bias, lo, hi)
 so a flat surface shows exactly its base colour and slopes or facets facing
 the light get brighter, those facing away darker, without hard shadows.
 The multiplication happens in sRGB space as in the study (lum ** 2.2 in linear).
@@ -20,6 +20,7 @@ LIGHT = Vector((-0.2, -0.45, 0.87)).normalized()
 GROUND = dict(gain=1.5, lo=0.62, hi=1.22)   # terrain: a bit more contrast than the study for readability
 OBJECT = dict(gain=1.0, lo=0.60, hi=1.30)   # trees and other objects
 FLAT = dict(gain=0.0, lo=1.0, hi=1.0)       # unshaded: open water
+WALL = dict(gain=0.31, bias=0.1, lo=0.6, hi=1.2)  # vertical walls: SW face ~0.95, SE face ~0.72
 
 SHADOW_RGB = (24, 40, 34)
 SHADOW_ALPHA = 0.22
@@ -34,7 +35,7 @@ def lin(rgb):
     return tuple(srgb_to_linear(v) for v in rgb) + (1.0,)
 
 
-def _lum_strength(nt, gain, lo, hi):
+def _lum_strength(nt, gain, lo, hi, bias=0.0):
     """Node chain computing lum ** 2.2 from the shading normal; returns the output socket."""
     geo = nt.nodes.new("ShaderNodeNewGeometry")
     dot = nt.nodes.new("ShaderNodeVectorMath")
@@ -53,7 +54,7 @@ def _lum_strength(nt, gain, lo, hi):
     v = math_node("DIVIDE", dot.outputs["Value"], LIGHT.z)
     v = math_node("SUBTRACT", v, 1.0)
     v = math_node("MULTIPLY", v, gain)
-    v = math_node("ADD", v, 1.0)
+    v = math_node("ADD", v, 1.0 + bias)
     v = math_node("MAXIMUM", v, lo)
     v = math_node("MINIMUM", v, hi)
     return math_node("POWER", v, 2.2)
@@ -160,6 +161,45 @@ def shore_material(water_path, sand_path, grass_path):
     foam = _mix_rgb(nt, _band(nt, z, 0.035, 0.06, peak=0.6), water, lin(FOAM_RGB))
     surface = _mix_rgb(nt, _band(nt, z, 0.08, 0.11), foam, shaded_land)
     nt.links.new(surface, em.inputs["Color"])
+    return mat
+
+
+def wall_material(stone_path):
+    """Foundation wall: stone texture with U = x + y along the wall and V = one repeat per height level.
+
+    x + y runs along both front edges (SW along X, SE along Y), so walls of
+    neighbouring tiles continue the same courses.
+    """
+    mat = bpy.data.materials.new("wall")
+    mat.use_nodes = True
+    nt = mat.node_tree
+    nt.nodes.clear()
+    out = nt.nodes.new("ShaderNodeOutputMaterial")
+    em = nt.nodes.new("ShaderNodeEmission")
+    nt.links.new(em.outputs["Emission"], out.inputs["Surface"])
+    nt.links.new(_lum_strength(nt, **WALL), em.inputs["Strength"])
+
+    geo = nt.nodes.new("ShaderNodeNewGeometry")
+    sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+    nt.links.new(geo.outputs["Position"], sep.inputs["Vector"])
+    u = nt.nodes.new("ShaderNodeMath")
+    u.operation = "ADD"
+    nt.links.new(sep.outputs["X"], u.inputs[0])
+    nt.links.new(sep.outputs["Y"], u.inputs[1])
+    v = nt.nodes.new("ShaderNodeMath")
+    v.operation = "DIVIDE"
+    nt.links.new(sep.outputs["Z"], v.inputs[0])
+    v.inputs[1].default_value = SHORE_LEVEL
+    uv = nt.nodes.new("ShaderNodeCombineXYZ")
+    nt.links.new(u.outputs[0], uv.inputs["X"])
+    nt.links.new(v.outputs[0], uv.inputs["Y"])
+    tex = nt.nodes.new("ShaderNodeTexImage")
+    tex.image = bpy.data.images.load(stone_path, check_existing=True)
+    tex.image.colorspace_settings.name = "sRGB"
+    tex.extension = "REPEAT"
+    tex.interpolation = "Cubic"
+    nt.links.new(uv.outputs["Vector"], tex.inputs["Vector"])
+    nt.links.new(tex.outputs["Color"], em.inputs["Color"])
     return mat
 
 
