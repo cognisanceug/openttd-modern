@@ -2,14 +2,15 @@
 # Put together a playable OpenTTD Modern with ModernGFX in one folder, apart from any other
 # OpenTTD installation: the built game, the NewGRFs and a config of its own.
 # Usage: install_local.sh [target]   (default: ~/Games/OpenTTD Modern)
-#   <target>/game/                  the game (copied from ../build) with its base sets and languages
+#   <target>/game/                  the game (copied from $OPENTTD/build) with its base sets and languages
 #   <target>/data/                  personal dir: openttd.cfg, newgrf/, baseset/ (OpenGFX), saves
 #   <target>/OpenTTD Modern.command  double-click to start
 # Running it again updates game and NewGRFs and keeps the config and savegames.
 set -e
 cd "$(dirname "$0")/.."
+. tools/openttd_dir.sh
 SRC="$PWD"
-BUILD="$SRC/../build"
+BUILD="$OPENTTD/build"
 DST="${1:-$HOME/Games/OpenTTD Modern}"
 # Only install into a new or empty folder or a previous install (the file system may ignore case,
 # so ~/OpenTTD-Modern could be this very checkout).

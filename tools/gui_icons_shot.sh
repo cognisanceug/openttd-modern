@@ -7,9 +7,10 @@
 # Uses the isolated test home and the configs of gui_shot.sh.
 set -e
 cd "$(dirname "$0")/.."
+. tools/openttd_dir.sh
 H="$PWD/test-home"
 T="$H/Documents/OpenTTD"
-BIN="${BIN:-../build/openttd}"
+BIN="${BIN:-$OPENTTD/build/openttd}"
 style=$1 prefix=$2
 shift 2
 mkdir -p "$T/baseset" "$T/newgrf" "$T/scripts" "$T/screenshot" shots
