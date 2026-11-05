@@ -1,6 +1,6 @@
-"""Render rail depots (1063-1068) and road depots (1408-1413) at zoom 1x, 2x and 4x.
+"""Render rail depots (1063-1068), road depots (1408-1413) and tram depots (TRAMWAY 113-118) at zoom 1x, 2x and 4x.
 
-Run:  Blender -b --factory-startup -P render_depots.py -- <outdir>
+Run:  Blender -b --factory-startup -P render_depots.py -- <outdir> [--only prefix,prefix]
 
 The game draws a depot as one or two building sprites, each anchored at the
 origin of its bounding box (see _depot_gfx_* in table/track_land.h and
@@ -46,6 +46,9 @@ SPRITES = {
     1410: ("road", "SW", "side", (0, 0)), 1411: ("road", "SW", "rest", (0, 15)),
     1412: ("road", "NE", "all", (0, 15)), 1413: ("road", "NW", "all", (15, 0)),
 }
+# Tram depots (TRAMWAY 113-118, laid out like 1408-1413; 49-54 get the same images): a taller hall
+# with a gable roof and an open gate, the tram track overlay on the ground runs inside.
+SPRITES.update({f"tram{113 + k}": ("tram",) + SPRITES[1408 + k][1:] for k in range(6)})
 
 
 def uv_to_xy(entrance, u, v):
@@ -104,6 +107,9 @@ def build(kind, entrance, part, anchor, cc_pass):
     if kind == "rail":
         u0, u1, v0, v1, wall_h, ridge, t = 1.0, 15.0, 2.0, 14.0, 0.36, 0.56, 0.7
         door_lo, door_hi = 4.5, 11.5
+    elif kind == "tram":
+        u0, u1, v0, v1, wall_h, ridge, t = 0.5, 15.5, 1.0, 15.0, 0.38, 0.6, 0.7
+        door_lo, door_hi = 3.5, 12.5
     else:
         u0, u1, v0, v1, wall_h, ridge, t = 0.5, 15.5, 1.0, 15.0, 0.34, None, 0.7
         door_lo, door_hi = 3.0, 13.0
@@ -120,12 +126,15 @@ def build(kind, entrance, part, anchor, cc_pass):
     b.box("band_hi", u0, u1, v1 - t, v1 + 0.1, wall_h - 0.035, wall_h, TRIM, cc=True)
     b.box("back", u1 - t, u1, v0, v1, 0, wall_h, WALL)
     b.box("back_in", u1 - t - 0.15, u1 - t, v0 + t, v1 - t, 0, wall_h - 0.02, WALL_INSIDE)
-    door_top = wall_h * 0.78
+    door_top = wall_h * (0.84 if kind == "tram" else 0.78)
     b.box("front_lo", u0, u0 + t, v0, door_lo, 0, wall_h, WALL)
     b.box("front_hi", u0, u0 + t, door_hi, v1, 0, wall_h, WALL)
     b.box("lintel", u0, u0 + t, door_lo, door_hi, door_top, wall_h, WALL)
     b.box("trim", u0 - 0.1, u0 + 0.05, door_lo - 0.4, door_hi + 0.4, door_top - 0.03, door_top + 0.02, TRIM, cc=True)
-    if kind == "rail":
+    if kind == "tram":
+        # Open gate: the roller door is rolled up under the lintel.
+        b.box("door", u0 + 0.2, u0 + 0.45, door_lo, door_hi, door_top - 0.05, door_top, DOOR)
+    if kind in ("rail", "tram"):
         # Gable roof along the track with overhangs, gable ends above the walls.
         ov, vm = 0.6, (v0 + v1) / 2
         eave = wall_h
@@ -148,7 +157,10 @@ def main():
     outdir = argv[0] if argv else os.path.join(os.getcwd(), "render", "depots")
     for zoom in ZOOMS:
         os.makedirs(os.path.join(outdir, f"z{zoom}"), exist_ok=True)
+    only = tuple(argv[argv.index("--only") + 1].split(",")) if "--only" in argv else None
     for sprite, (kind, entrance, part, anchor) in SPRITES.items():
+        if only and not str(sprite).startswith(only):
+            continue
         for zoom in ZOOMS:
             for cc_pass in (False, True):
                 bpy.ops.wm.read_factory_settings(use_empty=True)

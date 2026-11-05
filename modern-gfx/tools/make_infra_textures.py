@@ -64,6 +64,7 @@ RAIL_HALF = 0.013
 RAIL_EDGE = 0.022
 ROAD_HALF = 0.23
 KERB_W = 0.022
+LOOP_R = 0.12  # tram turning loop: outer rail edge 0.12 + 0.085 + 0.018 stays within ROAD_HALF
 
 
 def grid(n):
@@ -126,6 +127,19 @@ def draw_rails(img, x, y, track):
         d = np.abs(s - side * GAUGE_HALF)
         blend(img, RAIL_DARK, ((d < RAIL_EDGE) & inside).astype(float))
         blend(img, RAIL_TOP, ((d < RAIL_HALF) & inside).astype(float) * 0.95)
+
+
+def junction_region(n, open_edge):
+    """Ballast of a junction ground: the beds of every track that does not reach open_edge (None: all six)."""
+    x, y = grid(n)
+    region = np.zeros((n, n))
+    for track, ends in TRACKS.items():
+        if open_edge in ends:
+            continue
+        t, s, length = segment_coords(x, y, track)
+        inside = (t > -0.25) & (t < length + 0.25)
+        region = np.maximum(region, (1 - smooth(BALLAST_HALF - 0.02, BALLAST_HALF + 0.01, np.abs(s))) * inside)
+    return region
 
 
 def rail_texture(n, ground, tracks, noise, ballast_region=None):
@@ -279,12 +293,12 @@ def tram_paths(arms):
                     a1 += 2 * np.pi * (1 if a1 < a0 else -1)
                 paths.append(arc(c, 0.5, a0, a1, 64))
     if len(arms) == 1:
-        # Dead end: run to a balloon loop near the tile centre.
+        # Dead end: run to a balloon loop around the tile centre, inside the road stub's round end.
         m = mid[arms[0]]
         d = -m / np.linalg.norm(m)
-        centre = m + d * 0.62
-        paths.append(straight(m, m + d * 0.32))
-        paths.append(arc(centre, 0.3, 0, 2 * np.pi, 96))
+        centre = m + d * 0.5
+        paths.append(straight(m, m + d * (0.5 - LOOP_R)))
+        paths.append(arc(centre, LOOP_R, 0, 2 * np.pi, 96))
     return paths
 
 
@@ -426,11 +440,11 @@ def jobs(tex_dir, n):
         with_ground[1011 + off] = [tr]
     for sprite, trs in with_ground.items():
         out.append((f"rail{sprite}.png", partial(rail_texture, n, grass, trs, noise)))
-    # Junction grounds: ballast everywhere except a grass strip along the edge no track reaches.
+    # Junction grounds: the ballast beds of all tracks that may lie there (none reach the open edge).
     x, y = grid(n)
     edge_dist = {"NE": 0.5 - y, "SW": y + 0.5, "NW": x + 0.5, "SE": 0.5 - x}
     for k, edge in enumerate(("NE", "SW", "NW", "SE", None)):
-        region = np.ones((n, n)) if edge is None else smooth(0.2, 0.24, edge_dist[edge])
+        region = junction_region(n, edge)
         out.append((f"rail{1018 + k}.png", partial(rail_texture, n, grass, [], noise, ballast_region=region)))
 
     for k, arms in enumerate(ROAD_SHAPES):
