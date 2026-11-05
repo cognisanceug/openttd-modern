@@ -53,6 +53,36 @@ function InfraTest::Start()
 	Check("road depot SE", GSRoad.BuildRoadDepot(T(cx - 2, cy + 1), T(cx - 2, cy + 2)));
 	Check("road depot SW", GSRoad.BuildRoadDepot(T(cx - 4, cy + 2), T(cx - 3, cy + 2)));
 
+	/* Bridges of several types, each in the first free row south of the test layout. */
+	local types = [0, 2, 4, 6, 9, 10];
+	local row = cy + 5;
+	foreach (bt in types) {
+		local built = false;
+		while (!built && row < cy + 16) {
+			built = GSBridge.BuildBridge(GSVehicle.VT_RAIL, bt, T(cx - 3, row), T(cx + 3, row));
+			row++;
+		}
+		if (!built) GSLog.Warning("bridge type " + bt + " not built: " + GSError.GetLastErrorString());
+	}
+
+	/* One rail and one road tunnel on the nearest inclined slopes. */
+	local kinds = [GSVehicle.VT_RAIL, GSVehicle.VT_ROAD];
+	foreach (vt in kinds) {
+		local done = false;
+		for (local r = 2; r < 14 && !done; r++) {
+			for (local dx = -r; dx <= r && !done; dx++) {
+				for (local dy = -r; dy <= r && !done; dy++) {
+					local t = T(cx + dx, cy + dy);
+					local sl = GSTile.GetSlope(t);
+					if (sl == GSTile.SLOPE_NE || sl == GSTile.SLOPE_SE || sl == GSTile.SLOPE_SW || sl == GSTile.SLOPE_NW) {
+						done = GSTunnel.BuildTunnel(vt, t);
+					}
+				}
+			}
+		}
+		if (!done) GSLog.Warning("tunnel not built");
+	}
+
 	GSLog.Info("InfraTest done");
 	while (true) this.Sleep(1000);
 }
