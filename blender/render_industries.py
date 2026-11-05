@@ -1,0 +1,124 @@
+"""Render the temperate industries at zoom 1x, 2x and 4x.
+
+Run:  Blender -b --factory-startup -P render_industries.py -- <outdir> [--only 2011,2023] [--part k/n]
+
+The draw data comes from ref/industries/industries.json (tools/industry_table.py).
+For every tile gfx of the units in industry_models.py and every construction
+stage (or animation frame), the building sprite is rendered from the unit's
+model cut to the gfx's tile, anchored at the bounding box origin of
+_industry_draw_tile_data; ground sprites are flat tiles with decals and the
+low parts standing on them. A building sprite's kind follows the stages that
+use it: only at stage 0 'found', used at stage 3 (or animated) 'final',
+otherwise 'partial'. Ground sprites of the base set's terrain (3924 bare land)
+and of the town (1420 pavement) are not ours.
+
+The power station's transformer sparks (2055-2060, child sprites of 2054)
+are rendered alone in the transformer's frame, as s<sprite>_overlay.png.
+The iron ore mine (gfx 100-115, ground sprites only) is one 4x4 open pit,
+see render_iron_mine().
+Outputs: b<sprite>_* building sprites and g<sprite>_* grounds, see build_kit.py.
+"""
+
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import build_kit as bk  # noqa: E402
+import industry_models as im  # noqa: E402
+import iron_mine  # noqa: E402
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+TABLE = os.path.join(HERE, "..", "ref", "industries", "industries.json")
+EXTERNAL_GROUNDS = {3924, 1420, 3962}
+GENERIC_GROUND = 2022
+SPARKS = range(2055, 2061)
+
+
+def jobs(table):
+    """(building jobs, ground jobs): sprite -> dict(unit, gfx, tile, kind, box)."""
+    builds, grounds = {}, {}
+    anim = set(table["anim_state"])
+    for name, unit in im.UNITS.items():
+        for gfx, tile in unit["tiles"].items():
+            ents = table["ents"][gfx * 4:gfx * 4 + 4]
+            for which, out in (("build", builds), ("ground", grounds)):
+                seq = [e[which] for e in ents]
+                for s, e in enumerate(ents):
+                    sprite = seq[s]
+                    if not sprite or sprite in out or sprite in EXTERNAL_GROUNDS:
+                        continue
+                    stages = [i for i, v in enumerate(seq) if v == sprite]
+                    if gfx in anim or stages[-1] == 3:
+                        kind = "final"
+                    elif stages[0] == 0:
+                        kind = "found"
+                    else:
+                        kind = "partial"
+                    out[sprite] = dict(unit=name, gfx=gfx, tile=tile, kind=kind, recolour=e["bcol"],
+                                       box=(e["dx"], e["dy"], e["sx"], e["sy"], e["sz"]))
+    return builds, grounds
+
+
+def tile_clip(parts, tile):
+    tx, ty = tile
+    return bk.clip_parts(parts, tx * 16, tx * 16 + 16, ty * 16, ty * 16 + 16)
+
+
+def render_build(outdir, sprite, job):
+    unit = im.UNITS[job["unit"]]
+    k = bk.Kit()
+    unit["build"](k, job["kind"], sprite)
+    tx, ty = job["tile"]
+    dx, dy = job["box"][:2]
+    shift = (tx * 16 + dx, ty * 16 + dy)
+    rc = job["recolour"]
+    bk.render_building(outdir, f"b{sprite}", tile_clip(k.parts, job["tile"]), shift, cc=im.CC if rc else (),
+                       shadow_parts=k.parts, shadow_tiles=[job["tile"]], fixed=not rc)
+    print(f"rendered industry building {sprite} ({job['unit']} {job['kind']})", flush=True)
+
+
+def render_sparks(outdir, sprite):
+    k = bk.Kit()
+    im.transformer(k, "final", sprite)
+    bk.render_building(outdir, f"s{sprite}", k.parts, (1, 2), shadow_tiles=(), fixed=True)
+    print(f"rendered spark {sprite}", flush=True)
+
+
+def render_ground(outdir, sprite, job):
+    tx, ty = job["tile"] if job else (0, 0)
+    if sprite == GENERIC_GROUND or job is None:
+        base, d, g = "industry/yard", bk.Kit(), bk.Kit()
+    else:
+        base, d, g = im.UNITS[job["unit"]]["ground"](sprite, job["kind"])
+    decals = bk.clip_parts(d.parts, tx * 16 - 1, tx * 16 + 17, ty * 16 - 1, ty * 16 + 17)
+    # Industry grounds are drawn without the industry's colour.
+    bk.render_ground(outdir, f"g{sprite}", base, decals, (tx * 16, ty * 16), tile_clip(g.parts, (tx, ty)), fixed=True)
+    print(f"rendered industry ground {sprite}", flush=True)
+
+
+def main():
+    argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+    outdir = argv[0] if argv and not argv[0].startswith("--") else os.path.join(os.getcwd(), "render", "industries")
+    only = {int(s) for s in argv[argv.index("--only") + 1].split(",")} if "--only" in argv else None
+    part, parts = map(int, argv[argv.index("--part") + 1].split("/")) if "--part" in argv else (0, 1)
+    builds, grounds = jobs(json.load(open(TABLE)))
+    work = [("b", s, j) for s, j in sorted(builds.items())]
+    work += [("s", s, None) for s in SPARKS]
+    work += [("g", s, j) for s, j in sorted(grounds.items())]
+    work += [("i", s, None) for s in iron_mine.SPRITES]
+    for i, (what, sprite, job) in enumerate(work):
+        if i % parts != part or (only and sprite not in only):
+            continue
+        if what == "b":
+            render_build(outdir, sprite, job)
+        elif what == "s":
+            render_sparks(outdir, sprite)
+        elif what == "g":
+            render_ground(outdir, sprite, job)
+        else:
+            iron_mine.render(outdir, sprite)
+
+
+if __name__ == "__main__":
+    main()
