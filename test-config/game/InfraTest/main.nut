@@ -83,6 +83,22 @@ function InfraTest::Start()
 		if (!done) GSLog.Warning("tunnel not built");
 	}
 
+	/* A rail station north of the test layout; the game picks platform, building and roof tiles. */
+	local built = false;
+	for (local y = cy - 12; y < cy - 4 && !built; y++) {
+		for (local x = cx - 6; x < cx + 2 && !built; x++) {
+			built = GSRail.BuildRailStation(T(x, y), GSRail.RAILTRACK_NE_SW, 3, 5, GSStation.STATION_NEW);
+		}
+	}
+	if (!built) GSLog.Warning("rail station not built: " + GSError.GetLastErrorString());
+
+	/* Road stops along the road at cy + 2: bus and truck bays facing it, drive-through stops on it. */
+	Check("bus bay", GSRoad.BuildRoadStation(T(cx + 2, cy + 3), T(cx + 2, cy + 2), GSRoad.ROADVEHTYPE_BUS, GSStation.STATION_NEW));
+	Check("truck bay", GSRoad.BuildRoadStation(T(cx + 3, cy + 1), T(cx + 3, cy + 2), GSRoad.ROADVEHTYPE_TRUCK, GSStation.STATION_NEW));
+	Check("bus drive-through", GSRoad.BuildDriveThroughRoadStation(T(cx - 1, cy + 2), T(cx, cy + 2), GSRoad.ROADVEHTYPE_BUS, GSStation.STATION_NEW));
+	Check("truck drive-through", GSRoad.BuildDriveThroughRoadStation(T(cx + 3, cy + 2), T(cx + 2, cy + 2), GSRoad.ROADVEHTYPE_TRUCK, GSStation.STATION_NEW));
+	Check("rail waypoint", GSRail.BuildRailWaypoint(T(cx - 3, cy)));
+
 	GSLog.Info("InfraTest done");
 	while (true) this.Sleep(1000);
 }
