@@ -1,12 +1,13 @@
 """Pack the interface graphics into nml/modern_gui.grf.
 
 A separate NewGRF from modern_terrain.grf, so the interface can be built and
-enabled on its own. Currently it holds the title screen logo, one sprite per
-letter (tools/make_logo.py): T 4836, n 4839, p 4841, O 4842 in the base set,
-e and D in the OpenTTD GUI block (OTTD_GUI 12, 13).
+enabled on its own. It holds the title screen logo, one sprite per letter
+(tools/make_logo.py): T 4836, n 4839, p 4841, O 4842 in the base set, e and D
+in the OpenTTD GUI block (OTTD_GUI 12, 13); and the main toolbar icons
+(tools/make_icons.py), 20 x 20 px at 1x, see ICON_BLOCKS.
 Every block gets an 8bpp fallback plus 32bpp sprites at 1x, 2x, 4x.
 
-Usage: pack_gui_grf.py <render-dir> <nml-dir>   (render-dir holds logo/)
+Usage: pack_gui_grf.py <render-dir> <nml-dir>   (render-dir holds logo/ and icons/)
 """
 
 import os
@@ -24,6 +25,20 @@ LOGO_BLOCKS = (
     ("logo_o", "replace {name}(4842, {file})", "O"),
     ("logo_ed", "replacenew {name}(OTTD_GUI, {file}, 12)", "eD"),
 )
+
+# (block name, NML block header, icon names in sprite order)
+ICON_BLOCKS = (
+    ("icon_smallmap", "replace {name}(708, {file})", ["smallmap"]),
+    ("icon_save", "replace {name}(724, {file})", ["save"]),
+    ("icon_pause_rail_road", "replace {name}(726, {file})", ["pause", "buildrail", "buildroad"]),
+    ("icon_settings", "replace {name}(751, {file})", ["settings"]),
+    ("icon_town", "replace {name}(4077, {file})", ["town"]),
+    ("icon_fastforward", "replacenew {name}(OTTD_GUI, {file}, 90)", ["fastforward"]),
+)
+
+
+def icon_sprite(icon_dir, name, zoom):
+    return Image.open(os.path.join(icon_dir, f"z{zoom}", f"{name}.png")).convert("RGBA"), 0, 0
 
 
 def logo_sprite(logo_dir, ch, zoom):
@@ -51,6 +66,10 @@ def main():
     for name, header, chars in LOGO_BLOCKS:
         nml.append(sheet_block(name, header, [f"logo {c}" for c in chars],
                                {z: [logo_sprite(logo_dir, c, z) for c in chars] for z in ZOOMS}, gfx_dir))
+    icon_dir = os.path.join(render_dir, "icons")
+    for name, header, icons in ICON_BLOCKS:
+        nml.append(sheet_block(name, header, icons, {z: [icon_sprite(icon_dir, i, z) for i in icons] for z in ZOOMS},
+                               gfx_dir))
     open(os.path.join(nml_dir, "modern_gui.nml"), "w").write("\n".join(nml))
 
     lang_dir = os.path.join(nml_dir, "lang_gui")
@@ -58,7 +77,7 @@ def main():
     open(os.path.join(lang_dir, "english.lng"), "w").write(
         "##grflangid 0x01\n"
         "STR_GUI_GRF_NAME :Modern Interface\n"
-        "STR_GUI_GRF_DESC :Interface graphics matching Modern Terrain: the title screen logo. Licence: GPL v2.\n"
+        "STR_GUI_GRF_DESC :Interface graphics matching Modern Terrain: the title screen logo and toolbar icons. Licence: GPL v2.\n"
     )
     nmlc = os.path.join(os.path.dirname(sys.executable), "nmlc")
     subprocess.run([nmlc, "-c", "--lang-dir", "lang_gui", "--grf", "modern_gui.grf", "modern_gui.nml"],
