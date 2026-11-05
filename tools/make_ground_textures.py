@@ -17,6 +17,7 @@ meets its neighbours without a seam. Colours follow the map study:
   sand     beach sand #E2D098 for the shores
   stone    dressed stone courses for foundation walls (U per tile, V per height level)
   riverbank0-11  RGBA river bank pieces (sides, outer and inner corners), see make_river_banks()
+  canaldike0-11  RGBA canal edge pieces in the same order: stone quay with coping, see make_canal_dikes()
 The grass-growth stages share one coverage field, so grass regrows in place.
 Low-frequency variation stays gentle because one sprite repeats on every tile.
 
@@ -188,6 +189,7 @@ def main():
     save(stone, size, os.path.join(outdir, "stone.png"))
 
     make_river_banks(outdir, size, grass, sand)
+    make_canal_dikes(outdir, size, grass, stone)
 
 
 # Rough and rocky land come in variants that the game picks per tile (rocky
@@ -438,6 +440,71 @@ def make_river_banks(outdir, size, grass, sand):
                     px[i, j] = tuple(max(0, min(255, int(round(v)))) for v in rgba[:3]) + (int(round(rgba[3] * 255)),)
         img.save(os.path.join(outdir, f"riverbank{k}.png"))
     print(f"wrote {len(BANK_PIECES)} river bank pieces")
+
+
+# Canal edges: a stone quay instead of a sandy bank. From the land edge: meadow,
+# light coping, then (only where the wall faces the camera, i.e. on the far NE
+# and NW sides) the quay wall's face down to a dark waterline.
+DIKE_WIDTH = 0.17
+COPING = (214, 208, 194)
+COPING_EDGE = (176, 168, 150)
+WATERLINE = (40, 62, 70)
+TO_CAMERA = (2 ** -0.5, -(2 ** -0.5))  # tile-space direction towards the viewer (S corner)
+
+
+def _dike_profile(piece, x, y):
+    """(distance from the land edge, how much the quay wall faces the camera 0..1) for a canal edge piece."""
+    side = {"NE": 0.5 - y, "SE": 0.5 - x, "SW": y + 0.5, "NW": x + 0.5}
+    normal = {"NE": (0, -1), "SE": (-1, 0), "SW": (0, 1), "NW": (1, 0)}  # land -> water
+    kind, name = piece
+    d = _bank_distance(piece, x, y)
+    if kind == "inner":
+        px, py = {"E": (0.5, 0.5), "S": (0.5, -0.5), "W": (-0.5, -0.5), "N": (-0.5, 0.5)}[name]
+        r = max(d, 1e-6)
+        n = ((x - px) / r, (y - py) / r)
+    else:
+        near = name if kind == "side" else min({"E": ("NE", "SE"), "S": ("SE", "SW"), "W": ("SW", "NW"),
+                                                 "N": ("NW", "NE")}[name], key=lambda s_: side[s_])
+        n = normal[near]
+    facing = n[0] * TO_CAMERA[0] + n[1] * TO_CAMERA[1]
+    return d, smoothstep(-0.1, 0.4, facing)
+
+
+def _dike_rgba(d, facing, grass_c, stone_c):
+    if d >= DIKE_WIDTH:
+        return None
+    if d < 0.05:
+        return [*grass_c, 1.0]
+    if d < 0.058:
+        return [*COPING_EDGE, 1.0]
+    if d < 0.09:
+        return [*COPING, 1.0]
+    wall_end = 0.09 + 0.065 * facing
+    if d < wall_end:
+        c = mix([v * 0.82 for v in stone_c], WATERLINE, smoothstep(wall_end - 0.02, wall_end, d) * 0.7)
+        return [*c, 1.0]
+    # Shadow of the quay on the water, fading out.
+    a = 0.45 * (1.0 - smoothstep(wall_end, wall_end + 0.03, d))
+    return [*WATERLINE, a] if a > 0.01 else None
+
+
+def make_canal_dikes(outdir, size, grass, stone):
+    """RGBA canal edge pieces in tile space, same order and mapping as the river banks."""
+    for k, piece in enumerate(BANK_PIECES):
+        img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+        px = img.load()
+        for j in range(size):
+            y = 0.5 - (j + 0.5) / size
+            for i in range(size):
+                x = (i + 0.5) / size - 0.5
+                d, facing = _dike_profile(piece, x, y)
+                if piece[0] == "outer" and d >= BANK_WIDTH:
+                    d = DIKE_WIDTH
+                rgba = _dike_rgba(d, facing, grass(i, j), stone(i, j * 3 % size))
+                if rgba:
+                    px[i, j] = tuple(max(0, min(255, int(round(v)))) for v in rgba[:3]) + (int(round(rgba[3] * 255)),)
+        img.save(os.path.join(outdir, f"canaldike{k}.png"))
+    print(f"wrote {len(BANK_PIECES)} canal dike pieces")
 
 
 if __name__ == "__main__":
