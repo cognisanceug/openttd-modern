@@ -13,6 +13,7 @@ meets its neighbours without a seam. Colours follow the map study:
            is the variant for the second rocky set
   field0-8 farm field stages, see make_fields()
   snow1-4, desert1-4  snow (arctic) and desert (tropic) densities, see make_snow_desert()
+  toy_*    toyland ground (bare, grass13, grass23, grass, rough, rough1-4, rocky, rocky2), see make_toyland()
   water    the study's mid-depth water blue, nearly uniform
   sand     beach sand #E2D098 for the shores
   stone    dressed stone courses for foundation walls (U per tile, V per height level)
@@ -21,7 +22,7 @@ meets its neighbours without a seam. Colours follow the map study:
 The grass-growth stages share one coverage field, so grass regrows in place.
 Low-frequency variation stays gentle because one sprite repeats on every tile.
 
-Usage: make_ground_textures.py <outdir> [size]
+Usage: make_ground_textures.py <outdir> [size] [--toyland]   (--toyland: only the toy_* textures)
 """
 
 import os
@@ -90,9 +91,13 @@ def save(img_fn, size, path):
 def main():
     import numpy as np
 
-    outdir = sys.argv[1]
-    size = int(sys.argv[2]) if len(sys.argv) > 2 else 512
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    outdir = args[0]
+    size = int(args[1]) if len(args) > 1 else 512
     os.makedirs(outdir, exist_ok=True)
+    if "--toyland" in sys.argv:
+        make_toyland(outdir, size)
+        return
 
     grass_rgb = make_grass(size)
     _save_np(grass_rgb, os.path.join(outdir, "grass.png"))
@@ -129,6 +134,7 @@ def main():
     make_rough_rocky(outdir, size)
     make_fields(outdir, size)
     make_snow_desert(outdir, size)
+    make_toyland(outdir, size)
 
     # Water: the map study's mid-depth blue, kept almost uniform because the
     # same tile repeats over whole seas.
@@ -413,6 +419,87 @@ def make_snow_desert(outdir, size):
             sand_k = _np_mix(dry_grass, sand, m)
         _save_np(snow_k, os.path.join(outdir, f"snow{k}.png"))
         _save_np(sand_k, os.path.join(outdir, f"desert{k}.png"))
+
+
+# Toyland ground: the same sprites 3924-4060 as temperate, loaded from the
+# toyland base set (so OpenGFX draws grey bare ground, one carpet green for every
+# grass stage, crimson rocky land). Ours: lilac-grey putty for bare ground, an
+# even felt-green meadow without the dry yellow patches, sprinkled with sparse
+# pastel confetti; rough land with deeper clumps (pompoms are geometry); rocky
+# land with raspberry gravel (toy blocks and marbles are geometry). Same rules as
+# temperate: nothing below ~4 cycles per tile on the one-sprite textures, rough
+# and rocky variants share the edge band.
+TOY_MEADOW = (134, 204, 96)
+TOY_MINT = (112, 194, 104)
+TOY_LIGHT = (160, 214, 108)
+TOY_DEEP = (92, 168, 84)
+TOY_PUTTY = (186, 174, 198)
+TOY_PUTTY_DARK = (164, 152, 182)
+TOY_PUTTY_LIGHT = (204, 194, 214)
+TOY_GRAVEL = (212, 118, 140)
+TOY_GRAVEL_LIGHT = (238, 168, 180)
+TOY_GRAVEL_DARK = (174, 86, 110)
+CONFETTI = ((246, 150, 176), (250, 216, 104), (132, 190, 238), (246, 244, 236))
+
+
+def _toy_meadow(fbm, field):
+    """Felt-green meadow from callables fbm(octaves, oid) and field(freq, oid)."""
+    c = _np_mix(TOY_MEADOW, TOY_MINT, _np_smoothstep(-0.6, 1.8, fbm([(5, 0.45), (8, 0.45), (13, 0.25)], 0)) * 0.4)
+    c = _np_mix(c, TOY_LIGHT, _np_smoothstep(-0.2, 1.8, fbm([(6, 0.6), (11, 0.4)], 10)) * 0.4)
+    c = c * (1.0 + field(110, 20) * 0.015)[..., None]
+    # Confetti: sparse round pastel dots, about 1.5 % of the area.
+    dots = _np_smoothstep(2.25, 2.45, field(20, 30))
+    pick = field(9, 40)
+    for k, col in enumerate(CONFETTI):
+        lo, hi = -1.2 + 0.8 * k, -0.4 + 0.8 * k
+        sel = (pick >= lo) & (pick < hi) if 0 < k < len(CONFETTI) - 1 else (
+            pick < hi if k == 0 else pick >= lo)
+        c = _np_mix(c, col, dots * sel * 0.85)
+    return c
+
+
+def make_toyland(outdir, size):
+    import numpy as np
+    seed = 9100
+
+    def fbm(octaves, oid):
+        total = sum(spectral_noise(size, f, seed + oid + i) * w for i, (f, w) in enumerate(octaves))
+        return total / np.sqrt(sum(w * w for _, w in octaves))
+
+    grass = _toy_meadow(fbm, lambda f, oid: spectral_noise(size, f, seed + oid, width=0.6 if f > 60 else 0.4))
+    _save_np(grass, os.path.join(outdir, "toy_grass.png"))
+
+    clay = fbm([(5, 0.5), (9, 0.4), (16, 0.25)], 100)
+    bare = _np_mix(TOY_PUTTY, TOY_PUTTY_DARK, _np_smoothstep(-0.2, 1.6, clay) * 0.6)
+    bare = _np_mix(bare, TOY_PUTTY_LIGHT, _np_smoothstep(0.4, 1.8, fbm([(22, 0.6), (40, 0.4)], 110)) * 0.45)
+    bare = bare * (1.0 + spectral_noise(size, 120, seed + 120, width=0.6) * 0.03)[..., None]
+    _save_np(bare, os.path.join(outdir, "toy_bare.png"))
+
+    cover = make_grass_cover(size)  # the temperate field: same regrowth pattern
+    for name, share in (("toy_grass13", 1 / 3), ("toy_grass23", 2 / 3)):
+        t = float(np.quantile(cover, 1 - share))
+        _save_np(_np_mix(bare, grass, _np_smoothstep(t - 0.12, t + 0.12, cover)), os.path.join(outdir, f"{name}.png"))
+
+    rough_vn = VariantNoise(size, 91)
+    for v in range(ROUGH_VARIANTS):
+        c = _toy_meadow(lambda o, oid, v=v: rough_vn.fbm(o, v, oid), lambda f, oid, v=v: rough_vn.field(f, v, oid))
+        clumps = rough_vn.fbm([(4, 0.5), (9, 0.45), (20, 0.3)], v, 50)
+        c = _np_mix(c, TOY_DEEP, _np_smoothstep(-0.2, 1.6, clumps) * 0.6)
+        c = c * (1.0 + rough_vn.fbm([(70, 0.5), (140, 0.5)], v, 60) * 0.03)[..., None]
+        _save_np(c, os.path.join(outdir, "toy_rough.png" if v == 0 else f"toy_rough{v}.png"))
+
+    rocky_vn = VariantNoise(size, 97)
+    for v in range(ROCKY_VARIANTS):
+        c = _toy_meadow(lambda o, oid, v=v: rocky_vn.fbm(o, v, oid), lambda f, oid, v=v: rocky_vn.field(f, v, oid))
+        scree = rocky_vn.fbm([(3.5, 0.6), (8, 0.4), (18, 0.18)], v, 50)
+        k = _np_smoothstep(0.55, 1.0, scree) * (0.4 + 0.6 * rocky_vn.w)
+        fringe = _np_smoothstep(0.0, 0.45, scree) * (1 - k)
+        c = _np_mix(c, TOY_PUTTY, fringe * 0.4)
+        peb = rocky_vn.fbm([(48, 0.6), (96, 0.4)], v, 60)
+        g = _np_mix(TOY_GRAVEL, TOY_GRAVEL_LIGHT, _np_smoothstep(0.4, 1.8, peb) * 0.6)
+        g = _np_mix(g, TOY_GRAVEL_DARK, _np_smoothstep(0.6, 1.8, -peb) * 0.45)
+        c = _np_mix(c, g, k * 0.9)
+        _save_np(c, os.path.join(outdir, "toy_rocky.png" if v == 0 else f"toy_rocky{v + 1}.png"))
 
 
 # River bank pieces in OpenTTD's RiverEdge order: sides NE, SE, SW, NW; outer
