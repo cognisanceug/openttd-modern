@@ -1320,6 +1320,30 @@ static void ViewportAddLandscape()
 }
 
 /**
+ * Get the padding between the text of a viewport sign and its edges.
+ * In the modern window style the labels are roomier and have a soft shadow below the label.
+ * @return The padding around the text.
+ */
+static RectPadding GetViewportSignPadding()
+{
+	if (!_settings_client.gui.modern_ui) return WidgetDimensions::scaled.fullbevel;
+
+	uint8_t h = ScaleGUITrad(4);
+	uint8_t v = ScaleGUITrad(1);
+	return {h, v, h, static_cast<uint8_t>(v + ScaleGUITrad(1))};
+}
+
+/**
+ * Get the height of a viewport sign, not scaled by the zoom level.
+ * @param small Whether the small font is used.
+ * @return The height of the sign including its padding.
+ */
+static int GetViewportSignHeight(bool small)
+{
+	return GetViewportSignPadding().Vertical() + GetCharacterHeight(small ? FontSize::Small : FontSize::Normal);
+}
+
+/**
  * Add a string to draw in the current viewport.
  * @param dpi current viewport area
  * @param sign sign position and dimension
@@ -1335,7 +1359,7 @@ std::string *ViewportAddString(const DrawPixelInfo *dpi, const ViewportSign *sig
 	int bottom = top + dpi->height;
 
 	bool small = flags.Test(ViewportStringFlag::Small);
-	int sign_height     = ScaleByZoom(WidgetDimensions::scaled.fullbevel.top + GetCharacterHeight(small ? FontSize::Small : FontSize::Normal) + WidgetDimensions::scaled.fullbevel.bottom, dpi->zoom);
+	int sign_height     = ScaleByZoom(GetViewportSignHeight(small), dpi->zoom);
 	int sign_half_width = ScaleByZoom((small ? sign->width_small : sign->width_normal) / 2, dpi->zoom);
 
 	if (bottom < sign->top ||
@@ -1350,10 +1374,11 @@ std::string *ViewportAddString(const DrawPixelInfo *dpi, const ViewportSign *sig
 
 static Rect ExpandRectWithViewportSignMargins(Rect r, ZoomLevel zoom)
 {
+	const RectPadding padding = GetViewportSignPadding();
 	const int fh = std::max(GetCharacterHeight(FontSize::Normal), GetCharacterHeight(FontSize::Small));
 	const int max_tw = _viewport_sign_maxwidth / 2 + 1;
-	const int expand_y = ScaleByZoom(WidgetDimensions::scaled.fullbevel.top + fh + WidgetDimensions::scaled.fullbevel.bottom, zoom);
-	const int expand_x = ScaleByZoom(WidgetDimensions::scaled.fullbevel.left + max_tw + WidgetDimensions::scaled.fullbevel.right, zoom);
+	const int expand_y = ScaleByZoom(padding.top + fh + padding.bottom, zoom);
+	const int expand_x = ScaleByZoom(padding.left + max_tw + padding.right, zoom);
 
 	r.left -= expand_x;
 	r.right += expand_x;
@@ -1542,12 +1567,13 @@ void ViewportSign::UpdatePosition(int center, int top, std::string_view str, std
 
 	this->top = top;
 
-	this->width_normal = WidgetDimensions::scaled.fullbevel.left + Align(GetStringBoundingBox(str).width, 2) + WidgetDimensions::scaled.fullbevel.right;
+	const RectPadding padding = GetViewportSignPadding();
+	this->width_normal = padding.left + Align(GetStringBoundingBox(str).width, 2) + padding.right;
 	this->center = center;
 
 	/* zoomed out version */
 	if (str_small.empty()) str_small = str;
-	this->width_small = WidgetDimensions::scaled.fullbevel.left + Align(GetStringBoundingBox(str_small, FontSize::Small).width, 2) + WidgetDimensions::scaled.fullbevel.right;
+	this->width_small = padding.left + Align(GetStringBoundingBox(str_small, FontSize::Small).width, 2) + padding.right;
 
 	this->MarkDirty();
 }
@@ -1564,7 +1590,7 @@ void ViewportSign::MarkDirty(ZoomLevel maxzoom) const
 
 	/* We don't know which size will be drawn, so mark the largest area dirty. */
 	const uint half_width = std::max(this->width_normal, this->width_small) / 2 + 1;
-	const uint height = WidgetDimensions::scaled.fullbevel.top + std::max(GetCharacterHeight(FontSize::Normal), GetCharacterHeight(FontSize::Small)) + WidgetDimensions::scaled.fullbevel.bottom + 1;
+	const uint height = std::max(GetViewportSignHeight(false), GetViewportSignHeight(true)) + 1;
 
 	for (ZoomLevel zoom : EnumRange(ZoomLevel::End)) {
 		zoomlevels[zoom].left = this->center - ScaleByZoom(half_width, zoom);
@@ -1775,6 +1801,80 @@ static void ViewportDrawDirtyBlocks()
 	} while (--bottom > 0);
 }
 
+/**
+ * Fill a rectangle with rounded corners.
+ * @param r The rectangle to fill.
+ * @param radius Radius of the corners.
+ * @param colour Colour, or recolour palette, to fill with.
+ * @param mode Mode of filling.
+ */
+static void FillRoundedRect(const Rect &r, int radius, const std::variant<PixelColour, PaletteID> &colour, FillRectMode mode = FillRectMode::Opaque)
+{
+	radius = std::min({radius, r.Width() / 2, r.Height() / 2});
+	for (int i = 0; i < radius; i++) {
+		/* Follow a circle through the centres of the corner pixels; each row is filled once, so recolouring works too. */
+		float d = radius - i - 0.5f;
+		int inset = radius - static_cast<int>(std::lround(std::sqrt(radius * radius - d * d)));
+		GfxFillRect(r.left + inset, r.top + i, r.right - inset, r.top + i, colour, mode);
+		GfxFillRect(r.left + inset, r.bottom - i, r.right - inset, r.bottom - i, colour, mode);
+	}
+	if (r.top + radius <= r.bottom - radius) GfxFillRect(r.left, r.top + radius, r.right, r.bottom - radius, colour, mode);
+}
+
+/**
+ * Get a readable text colour for text on a filled background.
+ * @param fill The background colour.
+ * @return Black on light backgrounds, white otherwise.
+ */
+static TextColour GetContrastTextColour(PixelColour fill)
+{
+	const Colour &c = _cur_palette.palette[fill.p];
+	/* Perceived brightness after ITU-R BT.601. */
+	uint brightness = (c.r * 299 + c.g * 587 + c.b * 114) / 1000;
+	return brightness > 150 ? TextColour::Black : TextColour::White;
+}
+
+/**
+ * Draw a viewport string in the modern window style: a flat label with rounded corners
+ * and a soft shadow in the colour of the sign, or a translucent dark backing for plain text.
+ * @param ss The string to draw.
+ * @param r The area of the sign.
+ */
+static void DrawModernViewportString(const StringSpriteToDraw &ss, const Rect &r)
+{
+	bool small = ss.flags.Test(ViewportStringFlag::Small);
+	const RectPadding padding = GetViewportSignPadding();
+	const int shadow = ScaleGUITrad(1);
+	const int radius = ScaleGUITrad(3);
+	const Rect body = r.WithHeight(r.Height() - shadow);
+
+	ExtendedTextColour colour{TextColour::White};
+	if (ss.flags.Test(ViewportStringFlag::ColourRect)) {
+		if (ss.colour != Colours::Invalid) {
+			const PixelColour fill = GetColourGradient(ss.colour, Shade::Normal);
+			FillRoundedRect(body.Translate(0, shadow), radius, PALETTE_TO_TRANSPARENT, FillRectMode::Recolour);
+			FillRoundedRect(body, radius, GetColourGradient(ss.colour, Shade::Darker));
+			FillRoundedRect(body.Shrink(WidgetDimensions::scaled.bevel), radius - WidgetDimensions::scaled.bevel.left, fill);
+			colour = GetContrastTextColour(fill);
+		} else {
+			colour = TextColour::Black;
+		}
+	} else if (ss.flags.Any({ViewportStringFlag::TransparentRect, ViewportStringFlag::TextColour})) {
+		/* Transparent signs keep a light backing, so what is below stays visible. */
+		FillRoundedRect(body, radius, PALETTE_TO_TRANSPARENT, FillRectMode::Recolour);
+	} else {
+		/* Town names and text effects: a darker backing instead of the pixel shadow, readable over snow and water too. */
+		FillRoundedRect(body, radius, PALETTE_TO_TRANSPARENT, FillRectMode::Recolour);
+		FillRoundedRect(body, radius, PALETTE_TO_TRANSPARENT, FillRectMode::Recolour);
+	}
+
+	if (ss.flags.Test(ViewportStringFlag::TextColour)) {
+		if (ss.colour != Colours::Invalid) colour = ExtendedTextColour{GetColourGradient(ss.colour, Shade::Lightest)};
+	}
+
+	DrawString(body.left + padding.left, body.right - padding.right, body.top + padding.top, ss.string, colour, AlignmentH::Centre, false, small ? FontSize::Small : FontSize::Normal);
+}
+
 static void ViewportDrawStrings(ZoomLevel zoom, const StringSpriteToDrawVector *sstdv)
 {
 	for (const StringSpriteToDraw &ss : *sstdv) {
@@ -1782,7 +1882,12 @@ static void ViewportDrawStrings(ZoomLevel zoom, const StringSpriteToDrawVector *
 		int w = ss.width;
 		int x = UnScaleByZoom(ss.x, zoom);
 		int y = UnScaleByZoom(ss.y, zoom);
-		int h = WidgetDimensions::scaled.fullbevel.top + GetCharacterHeight(small ? FontSize::Small : FontSize::Normal) + WidgetDimensions::scaled.fullbevel.bottom;
+		int h = GetViewportSignHeight(small);
+
+		if (_settings_client.gui.modern_ui) {
+			DrawModernViewportString(ss, {x, y, x + w - 1, y + h - 1});
+			continue;
+		}
 
 		ExtendedTextColour colour{TextColour::White};
 		if (ss.flags.Test(ViewportStringFlag::ColourRect)) {
@@ -2274,7 +2379,7 @@ static bool CheckClickOnViewportSign(const Viewport &vp, int x, int y, const Vie
 {
 	bool small = (vp.zoom >= ZoomLevel::Out4x);
 	int sign_half_width = ScaleByZoom((small ? sign->width_small : sign->width_normal) / 2, vp.zoom);
-	int sign_height = ScaleByZoom(WidgetDimensions::scaled.fullbevel.top + GetCharacterHeight(small ? FontSize::Small : FontSize::Normal) + WidgetDimensions::scaled.fullbevel.bottom, vp.zoom);
+	int sign_height = ScaleByZoom(GetViewportSignHeight(small), vp.zoom);
 
 	return y >= sign->top && y < sign->top + sign_height &&
 			x >= sign->center - sign_half_width && x < sign->center + sign_half_width;

@@ -251,6 +251,9 @@ void Win32FontCache::ClearFontCache()
 {
 	assert(IsPrintable(key));
 
+	/* Fonts without OpenTTD's icons may have other glyphs at their private use code points; use the sprite font for them. */
+	if (this->sprite_icons && key >= SCC_SPRITE_START && key <= SCC_SPRITE_END) return allow_fallback ? this->parent->MapCharToGlyph(key) : 0;
+
 	/* Convert characters outside of the BMP into surrogate pairs. */
 	WCHAR chars[2];
 	if (key >= 0x010000U) {

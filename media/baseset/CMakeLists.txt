@@ -23,6 +23,9 @@ set(BASESET_OTHER_SOURCE_FILES
         ${CMAKE_CURRENT_SOURCE_DIR}/OpenTTD-Serif.ttf
         ${CMAKE_CURRENT_SOURCE_DIR}/OpenTTD-Small.ttf
         ${CMAKE_CURRENT_SOURCE_DIR}/OpenTTD-Mono.ttf
+        ${CMAKE_CURRENT_SOURCE_DIR}/Inter-Medium.ttf
+        ${CMAKE_CURRENT_SOURCE_DIR}/Inter-SemiBold.ttf
+        ${CMAKE_CURRENT_SOURCE_DIR}/Inter-LICENSE.txt
 )
 
 # Done by the subdirectories, if nforenum / grfcodec is installed
