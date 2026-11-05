@@ -1,3 +1,12 @@
+# OpenTTD Modern
+
+This is an unofficial fork of [OpenTTD](https://github.com/OpenTTD/OpenTTD) with a modern look:
+a flat "Modern window style" (Game Options › Interface), the Inter font, rounded map labels,
+news as cards, a modern status bar and a title scene in the new graphics. The graphics
+themselves are the separate NewGRF set [ModernGFX](https://github.com/cognisanceug/moderngfx),
+which also works in the regular OpenTTD. The classic look stays available by switching the
+modern window style off. Licence: GPL v2, like OpenTTD.
+
 # OpenTTD
 
 ## Table of contents
