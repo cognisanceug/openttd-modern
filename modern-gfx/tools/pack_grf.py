@@ -21,6 +21,12 @@ like river banks), roads 1313-1350 and level crossings 1370-1381, all packed
 like ground tiles with the crop box of the grass sprite on the same slope.
 Track fences 1301-1308 are cropped like overlays.
 
+Farm fields 4126-4296 (nine stages, 19 slopes each) are packed like ground
+tiles; their fences 4090-4125 (six types) like overlays. The GRF also sets
+second_rocky_tileset, so rocky land alternates between the sets 4023 and 4042.
+Snow (arctic) and desert (tropic) densities 4493-4568 come from render/snow and
+render/desert and are replaced only in their climate.
+
 Signals: 1275-1290 (electric block signals) and the 240-sprite Action 5
 PRE_SIGNAL_SEMAPHORE_PBS block, indexed like DrawSingleSignal(); slots the game
 never uses get a 1x1 transparent sprite. Depots 1063-1068 and 1408-1413 carry a
@@ -62,8 +68,8 @@ sprite (1442), so its offsets are taken from that sprite's crop. Unused
 sprites in the range (1438, 1439, 1566-1569) are empty.
 
 Usage: pack_grf.py <render-dir> <ref/ground> <nml-dir>
-  (render-dir holds ground/, trees/, foundations/, fences/, signals/, depots/, bridges/, tunnels/,
-   stations/, catenary/, houses/)
+  (render-dir holds ground/, snow/, desert/, trees/, foundations/, fences/, signals/, depots/, bridges/,
+   tunnels/, stations/, catenary/, houses/)
 """
 
 import json
@@ -341,6 +347,9 @@ def main():
         "    min_compatible_version: 1;",
         "}",
         "",
+        "// Rocky land: let the game also use the second set (4042), picked per tile by TileHash.",
+        "second_rocky_tileset = 1;",
+        "",
     ]
     for name, first, count in GROUND_BLOCKS:
         tiles = {z: [ground_sprite(ground_dir, first + k, z, meta[str(first + k)]) for k in range(count)]
@@ -447,6 +456,26 @@ def main():
                            gfx_dir))
     nml.append(sheet_block("tram_wires_back", "replacenew {name}(TRAMWAY, {file}, 84)", list(range(84, 95)),
                            {z: [cat(f"tram_{k}", z) for k in range(84, 95)] for z in ZOOMS}, gfx_dir))
+    # Farm fields 4126-4296 (nine stages x 19 slopes, packed like ground) and their fences 4090-4125.
+    for k in range(9):
+        first = 4126 + 19 * k
+        fields = {z: [ground_sprite(ground_dir, first + i, z, grass_meta(SPRITE_SLOPES[i])) for i in range(19)]
+                  for z in ZOOMS}
+        nml.append(sheet_block(f"farm_field{k}", f"replace {{name}}({first}, {{file}})",
+                               list(range(first, first + 19)), fields, gfx_dir))
+    farm_fences = {z: [overlay_sprite(fence_dir, f"ffence{n}", z) for n in range(4090, 4126)] for z in ZOOMS}
+    nml.append(sheet_block("farm_fences", "replace {name}(4090, {file})", list(range(4090, 4126)),
+                           farm_fences, gfx_dir))
+    # Snow (arctic) and desert (tropic) densities share 4493-4568; replace them per climate.
+    for climate, cdir in (("CLIMATE_ARCTIC", "snow"), ("CLIMATE_TROPICAL", "desert")):
+        parts = []
+        for k in range(4):
+            first = 4493 + 19 * k
+            tiles = {z: [ground_sprite(os.path.join(render_dir, cdir), first + i, z, grass_meta(SPRITE_SLOPES[i]))
+                         for i in range(19)] for z in ZOOMS}
+            parts.append(sheet_block(f"{cdir}{k + 1}", f"replace {{name}}({first}, {{file}})",
+                                     list(range(first, first + 19)), tiles, gfx_dir))
+        nml.append(f"if (climate == {climate}) {{\n" + "\n".join(parts) + "}\n")
     fences = {z: [overlay_sprite(fence_dir, f"fence{n}", z) for n in range(1301, 1309)] for z in ZOOMS}
     nml.append(sheet_block("track_fences", "replace {name}(1301, {file})", list(range(1301, 1309)), fences, gfx_dir))
     for name, header, names in (
