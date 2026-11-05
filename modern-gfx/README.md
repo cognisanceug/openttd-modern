@@ -297,9 +297,11 @@ font completes the look, e.g. in `openttd.cfg` under `[misc]`:
 `large_font = AvenirNext-DemiBold`, `prefer_sprite_font = false`.
 
 `nml/modern_gui.grf` is a separate NewGRF for interface graphics; it holds the
-title screen logo, set by `tools/make_logo.py`, and the 36 main toolbar icons
-plus the minimap buttons, flat symbols in the colours of the set drawn by
-`tools/make_icons.py`. In the modern style the toolbar's red separators are
+title screen logo, set by `tools/make_logo.py`, the 36 main toolbar icons
+plus the minimap buttons, and the build menu icons (rail and electric rail,
+road, tram, water, airport, landscaping), flat symbols in the colours of the
+set drawn by `tools/make_icons.py`; tracks and roads follow the map's
+isometric axes. In the modern style the toolbar's red separators are
 dark slate. The title game tries
 `baseset/opntitle_modern.dat` first, a town scene that needs Modern Terrain
 and Modern Interface enabled for new games; without them the default
@@ -316,5 +318,6 @@ TITLE=shots/title.sav tools/gui_shot.sh modern title title_modern
 ```
 
 The shots use two console commands of the fork: `show_window <name>` opens a
-window from a script, and `schedule in-5-seconds <script>` runs a script after
+window from a script (`WINDOWS="build_water"` picks them for `gui_shot.sh`;
+only one build toolbar is open at a time), and `schedule in-5-seconds <script>` runs a script after
 a few seconds of real time, also on the title screen.
