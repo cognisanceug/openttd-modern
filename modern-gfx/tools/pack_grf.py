@@ -763,6 +763,7 @@ def main():
     import pack_vehicles
     nml += pack_vehicles.ship_blocks(render_dir, gfx_dir, sheet_block)
     nml += pack_vehicles.aircraft_blocks(render_dir, gfx_dir, sheet_block)
+    nml += pack_vehicles.train_blocks(render_dir, gfx_dir, sheet_block)
     nml.append(toyland_grass_blocks(render_dir, grass_meta, gfx_dir))
     open(os.path.join(nml_dir, "modern_terrain.nml"), "w").write("\n".join(nml))
 

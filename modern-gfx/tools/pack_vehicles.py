@@ -38,6 +38,25 @@ AIRCRAFT = [("liner4hi", 0xE9D), ("jumbo", 0xEA5), ("concorde", 0xEAD), ("prop4t
 TOYLAND_AIRCRAFT = [("toybiplane", 0xE9D), ("toyhiwing", 0xEA5), ("toyjet", 0xEAD), ("toyjumbo", 0xEB5),
                     ("toyrocket", 0xEBD), ("toyheli", 0xEC5)]
 SPR_ROTOR_STOPPED = 3901
+
+# (name, first sprite, sprites) as in blender/trains.py ENGINES / WAGONS / TOYLAND.
+TRAIN_ENGINES = [
+    ("jubilee", 0xB59, 8), ("a4", 0xB61, 8), ("tank", 0xB69, 8), ("d25", 0xB71, 4), ("d37", 0xB75, 4),
+    ("e30", 0xB79, 4), ("hst", 0xB7D, 8), ("dmu", 0xB85, 8), ("dash", 0xB8D, 8), ("asiastar", 0xB95, 8),
+    ("tim", 0xB9D, 8), ("x2001", 0xBA5, 4), ("z1", 0xBA9, 8), ("lev3", 0xBB1, 8), ("lev4", 0xBB9, 8),
+    ("lev1", 0xBC1, 4), ("lev2", 0xBC5, 4), ("cs2400", 0xBC9, 8), ("centennial", 0xBD1, 8), ("cs4000", 0xBD9, 8),
+    ("wills", 0xBE1, 8), ("kelling", 0xBE9, 4), ("turbo", 0xBED, 8), ("mjs1000", 0xBF5, 4), ("mjs250", 0xBF9, 8)]
+_RAIL_WAGONS = ["pass", "coal", "mail", "oil", "livestock", "goods", "food", "grain", "wood", "flat", "hopper",
+                "armoured", "coal_full", "grain_full", "wood_full", "steel_full", "iron_full", "paper_full",
+                "copper_full", "water", "fruit", "fruit_full", "rubber", "rubber_full"]
+TRAIN_WAGONS = [(f"w_{n}", 0xAAD + 4 * i, 4) for i, n in enumerate(_RAIL_WAGONS)] + \
+    [(f"m_{n}", 0xB0D + 4 * i, 4) for i, n in enumerate(_RAIL_WAGONS[:19])]
+TOYLAND_TRAINS = [
+    ("toy_powernaut", 0xB59, 8), ("toy_mightymover", 0xB61, 8), ("toy_ploddy", 0xB69, 8), ("toy_pdiesel", 0xBC9, 8),
+    ("toy_ndiesel", 0xBD9, 8), ("toy_z99", 0xBA9, 8), ("toy_rocketeer", 0xBC1, 4), ("t_pass", 0xAAD, 4)] + \
+    [(f"t_{n}", 0xAB5 + 4 * i, 4) for i, n in enumerate(
+        ["mail", "sugar", "sugar_full", "floss", "floss_full", "toffee", "toffee_full", "bubble", "bubble_full", "cola",
+         "cola_full", "sweet", "toy", "battery", "battery_full", "fizzy", "fizzy_full", "plastic", "plastic_full"])]
 ROTOR_DISC_ALPHA, ROTOR_BLADE_ALPHA = 0.28, 0.55
 
 
@@ -111,3 +130,18 @@ def ship_blocks(render_dir, gfx_dir, sheet_block):
                                    [f"{name} dir {d}" for d in range(8)], sprites, gfx_dir, mask_index=COMPANY_INDEX))
         return out
     return block("ship_", SHIPS) + ["if (climate == CLIMATE_TOYLAND) {\n" + "\n".join(block("ship_", TOYLAND_SHIPS)) + "}\n"]
+
+
+def train_blocks(render_dir, gfx_dir, sheet_block):
+    veh_dir = os.path.join(render_dir, "vehicles")
+    meta = json.load(open(os.path.join(veh_dir, "meta.json")))
+
+    def block(sets):
+        out = []
+        for name, first, n in sets:
+            sprites = {z: [vehicle_sprite(veh_dir, name, d, z, meta) for d in range(n)] for z in ZOOMS}
+            out.append(sheet_block(f"train_{name}", "replace {name}(%d, {file})" % first,
+                                   [f"{name} dir {d}" for d in range(n)], sprites, gfx_dir, mask_index=COMPANY_INDEX))
+        return out
+    return block(TRAIN_ENGINES + TRAIN_WAGONS) + [
+        "if (climate == CLIMATE_TOYLAND) {\n" + "\n".join(block(TOYLAND_TRAINS)) + "}\n"]
