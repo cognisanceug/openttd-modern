@@ -28,6 +28,7 @@ protected:
 	int height = 0; ///< The height of the font.
 	int ascender = 0; ///< The ascender value of the font.
 	int descender = 0; ///< The descender value of the font.
+	bool sprite_icons = false; ///< Whether OpenTTD's private use icons come from the sprite font, even where the font has glyphs of its own.
 
 	FontCache(FontSize fs) : fs(fs) {}
 	static void Register(std::unique_ptr<FontCache> &&fc);

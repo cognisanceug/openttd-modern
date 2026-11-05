@@ -60,6 +60,11 @@
 #include "vehicle_cmd.h"
 #include "engine_func.h"
 #include "town.h"
+#include "station_base.h"
+#include "station_cmd.h"
+#include "signs_cmd.h"
+#include "news_func.h"
+#include "engine_gui.h"
 #include "video/video_driver.hpp"
 
 #if defined(WITH_ZLIB)
@@ -1849,6 +1854,77 @@ static const Train *GetScreenshotTrain()
 }
 
 /**
+ * Get a station of the local company for GUI screenshots, building a rail station with a sign next to it first if there is none.
+ * The station is placed on the first free tile around the largest town.
+ * @return The station, or nullptr if none could be built.
+ */
+static const Station *GetScreenshotStation()
+{
+	for (const Station *st : Station::Iterate()) {
+		if (st->owner == _local_company) return st;
+	}
+	const Town *best = nullptr;
+	for (const Town *t : Town::Iterate()) {
+		if (best == nullptr || t->cache.population > best->cache.population) best = t;
+	}
+	if (best == nullptr) return nullptr;
+
+	Backup<CompanyID> cur_company(_current_company, _local_company);
+	TileIndex station = INVALID_TILE;
+	for (int r = 2; r < 16 && station == INVALID_TILE; r++) {
+		for (int dx = -r; dx <= r && station == INVALID_TILE; dx++) {
+			TileIndex tile = TileAddWrap(best->xy, dx, -r);
+			if (tile == INVALID_TILE) continue;
+			if (Command<Commands::BuildRailStation>::Do(DoCommandFlag::Execute, tile, RAILTYPE_RAIL, Axis::X, 1, 3, STAT_CLASS_DFLT, 0, StationID::Invalid(), false).Succeeded()) station = tile;
+		}
+	}
+	if (station != INVALID_TILE) {
+		TileIndex sign = TileAddWrap(station, 0, 2);
+		if (sign != INVALID_TILE) Command<Commands::PlaceSign>::Do(DoCommandFlag::Execute, sign, "Goods yard");
+	}
+	cur_company.Restore();
+
+	for (const Station *st : Station::Iterate()) {
+		if (st->owner == _local_company) return st;
+	}
+	return nullptr;
+}
+
+/**
+ * Add a news item of the given style, for GUI screenshots of the news windows.
+ * @param name news_thin, news_small, news_normal, news_vehicle or news_company.
+ */
+static void ShowScreenshotNews(std::string_view name)
+{
+	if (name == "news_normal") {
+		AddNewsItem(GetEncodedString(STR_NEWS_BEGIN_OF_RECESSION), NewsType::Economy, NewsStyle::Normal, {});
+	} else if (name == "news_vehicle") {
+		for (const Engine *e : Engine::IterateType(VehicleType::Train)) {
+			if (!IsEngineBuildable(e->index, VehicleType::Train, _local_company)) continue;
+			AddNewsItem(GetEncodedString(STR_NEWS_NEW_VEHICLE_NOW_AVAILABLE_WITH_TYPE, GetEngineCategoryName(e->index), PackEngineNameDParam(e->index, EngineNameContext::PreviewNews)),
+				NewsType::NewVehicles, NewsStyle::Vehicle, {}, e->index);
+			break;
+		}
+	} else if (name == "news_company") {
+		const Company *c = Company::Get(_local_company);
+		const Town *t = ClosestTownFromTile(c->last_build_coordinate != INVALID_TILE ? c->last_build_coordinate : TileXY(Map::SizeX() / 2, Map::SizeY() / 2), UINT_MAX);
+		if (t == nullptr) return;
+		auto cni = std::make_unique<CompanyNewsInformation>(STR_NEWS_COMPANY_LAUNCH_TITLE, c);
+		EncodedString headline = GetEncodedString(STR_NEWS_COMPANY_LAUNCH_DESCRIPTION, cni->company_name, t->index);
+		AddNewsItem(std::move(headline), NewsType::CompanyInfo, NewsStyle::Company, {}, t->xy, {}, std::move(cni));
+	} else {
+		const Station *st = GetScreenshotStation();
+		const Train *v = GetScreenshotTrain();
+		if (st == nullptr || v == nullptr) return;
+		if (name == "news_thin") {
+			AddVehicleNewsItem(GetEncodedString(STR_NEWS_FIRST_TRAIN_ARRIVAL, st->index), NewsType::ArrivalCompany, v->index, st->index);
+		} else {
+			AddVehicleAdviceNewsItem(AdviceType::VehicleLost, GetEncodedString(STR_NEWS_VEHICLE_IS_LOST, v->index), v->index);
+		}
+	}
+}
+
+/**
  * Open a window by name, for GUI screenshots from scripts.
  * @param name Name of the window, see ConShowWindow.
  */
@@ -1894,6 +1970,11 @@ static void ShowWindowByName(std::string_view name)
 	if (name == "company") ShowCompany(_local_company);
 	if (name == "train_list") ShowVehicleListWindow(_local_company, VehicleType::Train);
 	if (name == "groups") ShowCompanyGroup(_local_company, VehicleType::Train);
+	if (name == "station") {
+		const Station *st = GetScreenshotStation();
+		if (st != nullptr) ScrollMainWindowToTile(st->xy, true);
+	}
+	if (name.starts_with("news_")) ShowScreenshotNews(name);
 	if (name == "depot" || name == "vehicle" || name == "orders") {
 		const Train *t = GetScreenshotTrain();
 		if (t == nullptr) return;
@@ -1908,10 +1989,12 @@ static bool ConShowWindow(std::span<std::string_view> argv)
 {
 	static const std::initializer_list<std::string_view> names = {
 		"build_rail", "build_elrail", "build_mono", "build_maglev", "build_signals", "build_road", "build_tram", "build_water", "build_air", "landscaping",
-		"town", "goto_town", "title_view", "finances", "company", "options", "train_list", "groups", "depot", "vehicle", "orders", "close_all"};
+		"town", "goto_town", "title_view", "finances", "company", "options", "train_list", "groups", "depot", "vehicle", "orders", "close_all",
+		"station", "news_thin", "news_small", "news_normal", "news_vehicle", "news_company"};
 	if (argv.size() != 2 || std::ranges::find(names, argv[1]) == names.end()) {
 		IConsolePrint(CC_HELP, "Open a window. Usage: 'show_window <name>'. Names: build_rail, build_elrail, build_mono, build_maglev, build_signals, build_road, build_tram, build_water, build_air, landscaping,");
 		IConsolePrint(CC_HELP, "  town, goto_town, title_view, finances, company, options, train_list, groups, depot, vehicle, orders, close_all. 'depot', 'vehicle' and 'orders' build a depot with a train if the company has none.");
+		IConsolePrint(CC_HELP, "  station builds a rail station with a sign next to the largest town and scrolls to it; news_thin, news_small, news_normal, news_vehicle and news_company show a news item of that style.");
 		return true;
 	}
 

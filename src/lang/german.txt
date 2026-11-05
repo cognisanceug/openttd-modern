@@ -857,6 +857,7 @@ STR_MESSAGE_HISTORY_TOOLTIP                                     :{BLACK}Eine Lis
 STR_MESSAGE_NEWS_FORMAT                                         :{STRING} – {STRING}
 
 STR_NEWS_MESSAGE_CAPTION                                        :{WHITE}Mitteilung
+STR_NEWS_DATE_AND_TOWN                                          :{DATE_LONG} · {TOWN}
 
 STR_NEWS_FIRST_TRAIN_ARRIVAL                                    :{BIG_FONT}{BLACK}Die Einwohner feiern . . .{}Der erste Zug erreicht {STATION}!
 STR_NEWS_FIRST_BUS_ARRIVAL                                      :{BIG_FONT}{BLACK}Die Einwohner feiern . . .{}Der erste Bus erreicht {STATION}!
@@ -1955,7 +1956,7 @@ STR_CONFIG_SETTING_NEWS_MESSAGES_SUMMARY                        :Ticker
 STR_CONFIG_SETTING_NEWS_MESSAGES_FULL                           :Zeitung
 
 STR_CONFIG_SETTING_COLOURED_NEWS_YEAR                           :Farbige Nachrichten erscheinen ab: {STRING}
-STR_CONFIG_SETTING_COLOURED_NEWS_YEAR_HELPTEXT                  :Jahr in dem die Zeitung in Farbe herausgebracht wird. Vor diesem Jahr erscheint sie in Schwarz-Weiß-Druck
+STR_CONFIG_SETTING_COLOURED_NEWS_YEAR_HELPTEXT                  :Jahr in dem die Zeitung in Farbe herausgebracht wird. Vor diesem Jahr erscheint sie in Schwarz-Weiß-Druck. Gilt nur für den klassischen Fensterstil, der moderne Stil zeigt Nachrichten immer farbig
 STR_CONFIG_SETTING_STARTING_YEAR                                :Startdatum: {STRING}
 
 STR_CONFIG_SETTING_ENDING_YEAR                                  :Beurteilungsjahr der Firma: {STRING}

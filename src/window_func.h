@@ -60,6 +60,7 @@ void ShowVitalWindows();
  * @param zoom_changed Set if windows are being re-initialized due to a zoom level changed.
  */
 void ReInitAllWindows(bool zoom_changed);
+void ReloadModernWindowStyle();
 
 void SetWindowWidgetDirty(WindowClass cls, WindowNumber number, WidgetID widget_index);
 void SetWindowDirty(WindowClass cls, WindowNumber number);

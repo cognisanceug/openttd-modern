@@ -17,6 +17,7 @@
 #include "viewport_func.h"
 #include "window_func.h"
 #include "fileio_func.h"
+#include "settings_type.h"
 
 #include "safeguards.h"
 
@@ -154,6 +155,11 @@ static bool IsDefaultFont(const FontCacheSubSetting &setting)
 	return setting.font.empty() && !setting.os_handle.has_value();
 }
 
+static bool UseModernTruetypeFont(FontSize fs);
+
+/** Default unscaled sizes of the modern font, chosen to match the cap height of the sprite font. */
+static const EnumIndexArray<int, FontSize, FontSize::End> MODERN_FONT_SIZE{10, 7, 16, 10};
+
 /**
  * Get the scalable font size to use for a FontSize.
  * @param fs FontSize to get the scalable font size for.
@@ -162,7 +168,8 @@ static bool IsDefaultFont(const FontCacheSubSetting &setting)
 uint GetFontCacheFontSize(FontSize fs)
 {
 	const FontCacheSubSetting &setting = *GetFontCacheSubSetting(fs);
-	return IsDefaultFont(setting) && setting.size == 0 ? FontCache::GetDefaultFontHeight(fs) : setting.size;
+	if (!IsDefaultFont(setting) || setting.size != 0) return setting.size;
+	return UseModernTruetypeFont(fs) ? MODERN_FONT_SIZE[fs] : FontCache::GetDefaultFontHeight(fs);
 }
 
 #if defined(WITH_FREETYPE) || defined(_WIN32) || defined(WITH_COCOA)
@@ -181,7 +188,51 @@ static std::string GetDefaultTruetypeFont(FontSize fs)
 		default: NOT_REACHED();
 	}
 }
+
+/**
+ * Get name of the font file used by default in the modern window style.
+ * @param fs Font size.
+ * @return Name of the modern font file, or empty if the classic default font is used for this size.
+ */
+static std::string GetModernTruetypeFont(FontSize fs)
+{
+	switch (fs) {
+		case FontSize::Normal: return "Inter-Medium.ttf";
+		case FontSize::Small: return "Inter-Medium.ttf";
+		case FontSize::Large: return "Inter-SemiBold.ttf";
+		case FontSize::Monospace: return {};
+		default: NOT_REACHED();
+	}
+}
 #endif /* defined(WITH_FREETYPE) || defined(_WIN32) || defined(WITH_COCOA) */
+
+/**
+ * Get the path of the modern default font file for a given font size.
+ * @param fs Font size.
+ * @return Full path of the font file, or empty if the modern window style is off or the font is not available.
+ */
+static std::string GetModernTruetypeFontFile([[maybe_unused]] FontSize fs)
+{
+#if defined(WITH_FREETYPE) || defined(_WIN32) || defined(WITH_COCOA)
+	if (!_settings_client.gui.modern_ui) return {};
+
+	std::string name = GetModernTruetypeFont(fs);
+	if (name.empty()) return {};
+	return FioFindFullPath(Subdirectory::Baseset, name);
+#else
+	return {};
+#endif /* defined(WITH_FREETYPE) || defined(_WIN32) || defined(WITH_COCOA) */
+}
+
+/**
+ * Test whether the default font for a given font size is the modern font.
+ * @param fs Font size.
+ * @return true iff the modern window style is on and its font file is available.
+ */
+static bool UseModernTruetypeFont(FontSize fs)
+{
+	return !GetModernTruetypeFontFile(fs).empty();
+}
 
 /**
  * Get path of default font file for a given font size.
@@ -191,7 +242,9 @@ static std::string GetDefaultTruetypeFont(FontSize fs)
 static std::string GetDefaultTruetypeFontFile([[maybe_unused]] FontSize fs)
 {
 #if defined(WITH_FREETYPE) || defined(_WIN32) || defined(WITH_COCOA)
-	/* Find font file. */
+	/* Find font file, the modern one first. */
+	std::string modern = GetModernTruetypeFontFile(fs);
+	if (!modern.empty()) return modern;
 	return FioFindFullPath(Subdirectory::Baseset, GetDefaultTruetypeFont(fs));
 #else
 	return {};
@@ -287,7 +340,10 @@ static std::string GetFontCacheFontName(FontSize fs)
 		std::string font_name = GetFontCacheFontName(fs);
 		if (font_name.empty()) continue;
 
-		FontCache::Register(FontProviderManager::LoadFont(fs, FontType::TrueType, true, font_name, settings->os_handle));
+		auto fc = FontProviderManager::LoadFont(fs, FontType::TrueType, true, font_name, settings->os_handle);
+		/* The modern font has glyphs of its own where OpenTTD has its icons. */
+		if (fc != nullptr && font_name == GetModernTruetypeFontFile(fs)) fc->sprite_icons = true;
+		FontCache::Register(std::move(fc));
 	}
 }
 
