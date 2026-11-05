@@ -8,12 +8,18 @@ keeps that animation when its mask (the 8bpp companion of the RGBA sheet)
 carries such an index: the 32bpp-anim blitters then draw the animated palette
 colour, scaled by the pixel's brightness max(r, g, b) / 128.
 
-Only the colour's brightness is ours, its hue is the palette's. So most water
-pixels keep their rendered RGB, and only a ripple pattern is animated: wave
-crests in dark-water indices whose phase advances across the crest (so the
-light band travels like OpenGFX's waves), plus a sparse sprinkle of glitter
-pixels. The brightness of each animated pixel is fitted to the rendered
-colour, so at rest the pattern sits close to our water tone.
+Only the colour's brightness is ours, its hue is the palette's: the dark-water
+shades are a saturated blue (LCh hue ~276) where our water is a soft teal
+(~241), and no brightness turns one into the other. So most water pixels keep
+their rendered RGB, and only a ripple pattern is animated: wave crests in
+dark-water indices whose phase advances across the crest (so the light band
+travels like OpenGFX's waves), plus a sparse sprinkle of glitter pixels. The
+pattern is dithered: every other pattern pixel (a checkerboard in screen
+pixels) stays static and takes the complement 2 * water - animated of its
+neighbour's colour (cycle mean for crests, resting shade for glitter). Each
+pair averages to the rendered teal, so the blue does not show as streaks, and
+what remains visible is the cycle's change of brightness moving along the
+crests.
 
 The pattern is a function of the tile coordinates (u, v) in [0, 1), periodic
 in both, so neighbouring water tiles, shores and rivers join without seams.
@@ -37,7 +43,8 @@ DARK_MEAN = DARK_WATER[2]
 GLITTER_REST = GLITTER[4]
 
 CREST_WIDTH = 0.16     # share of a wave period that is an animated crest
-CREST_GAIN = 1.04      # crests are drawn a little lighter than the water around them
+CREST_GAIN = 1.15      # animated crest pixels are this much lighter than the water (their
+                       # static partners as much darker); the cycle's swing grows with it
 DASH_SHARE = 0.55      # share of a crest that is drawn (crests break into dashes)
 GLITTER_SHARE = 0.006  # share of water pixels that sparkle
 WAVES = (3, 2)         # wave fronts per tile along u and v
@@ -102,8 +109,18 @@ def animate(sprite, zoom):
             kind, k = hit
             if kind == "dark":
                 index, vb = DARK_FIRST + k, min(255, round(CREST_GAIN * fit_brightness((r, g, b), DARK_MEAN)))
+                ref = [sum(c) / 5 for c in zip(*(adjust_brightness(d, vb) for d in DARK_WATER))]
             else:
                 index, vb = GLITTER_FIRST + k, fit_brightness((r, g, b), GLITTER_REST)
+                ref = adjust_brightness(GLITTER_REST, vb)
+            if (x + xo + y + yo) % 2:
+                # The palette sets the hue of an animated pixel, and its blue is
+                # not our teal. So every other pattern pixel stays static and
+                # takes the complement of its animated neighbour's colour (the
+                # cycle mean for crests, the resting shade for glitter): the
+                # pair averages to the rendered water, and only the cycle shows.
+                px[x, y] = tuple(max(0, min(255, round(2 * t - c))) for t, c in zip((r, g, b), ref)) + (a,)
+                continue
             mp[x, y] = index
             px[x, y] = (vb, vb, vb, a)
     if om is not None:

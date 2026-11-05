@@ -160,7 +160,11 @@ max(r, g, b) / 128, and the colour cycles with the palette (dark water
 palette's, so not the whole surface is animated: a ripple pattern of short
 wave crests in dark-water indices (their phase falls across each crest, so the
 light band travels) and a sprinkle of glitter pixels, each fitted to the
-rendered colour's brightness; the rest keeps the rendered RGB. The pattern is
+rendered colour's brightness; the rest keeps the rendered RGB. The palette's
+water shades are bluer than our teal, so the pattern is a checkerboard: every
+other pattern pixel stays static in the complement colour (2 x water minus
+its animated neighbour's mean), each pair averages to the teal, and only the
+cycle's brightness change shows, moving along the crests. The pattern is
 periodic in tile coordinates, so seas, shores, rivers, canals and aqueduct
 troughs join without seams. `water_anim.py <render/ground> <ref/ground> out.gif`
 simulates the cycle for a patch of sea. Desert and snow shores do not exist in
