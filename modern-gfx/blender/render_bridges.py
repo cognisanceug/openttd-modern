@@ -1,6 +1,6 @@
 """Render the rail and road bridge sprites (2437-2580) at zoom 1x, 2x and 4x.
 
-Run:  Blender -b --factory-startup -P render_bridges.py -- <outdir> [<ref/bridges/usage.json>]
+Run:  Blender -b --factory-startup -P render_bridges.py -- <outdir> [<ref/bridges/usage.json>] [--families a,b]
 
 usage.json (built from table/bridge_land.h) tells for every sprite how the game
 uses it: bridge head (direction, ramp or flat) or middle element (back = deck
@@ -8,7 +8,8 @@ plus the far side, front = the near side, pillar) for a section (north, south,
 inner, middle) of a bridge family. Geometry is built in tile units with a
 running along the bridge (0 = north end of the tile) and c across it.
 
-Families: wood, concrete (parapets), archgirder (one arch per tile), girder
+Families: wood, concrete (kerb and plain steel railing, shared with the suspension
+bridges' even middle tiles), archgirder (one arch per tile), girder
 (lattice side girders), suspension (pylons and sagging cables), cantilever
 (truss rising towards the ends), tubular (tube arch). Steel parts are rendered
 neutral grey and flagged in a second pass; the packer gives them palette index
@@ -45,6 +46,8 @@ CONCRETE_DARK = (146, 144, 136)
 TIMBER = (132, 98, 66)
 TIMBER_DARK = (104, 78, 54)
 STEEL = (128, 128, 128)  # recoloured in game through the mask
+RAIL_GREY = (150, 154, 160)
+RAIL_TOP = 3.4  # top rail of the steel railings above the deck
 
 DECK_C0, DECK_C1, DECK_T = 2.0, 14.0, 3.0
 SIDE_BACK, SIDE_FRONT = 2.6, 13.4
@@ -145,24 +148,17 @@ def deck(b, transport, wood, z_at=lambda a: DECK_T):
 
 
 def railing(b, c, style, z_at=lambda a: DECK_T):
-    if style == "concrete":
-        n = 8
-        faces = []
-        for i in range(n):
-            a0, a1 = 16 * i / n, 16 * (i + 1) / n
-            for cc in (c - 0.4, c + 0.4):
-                faces.append([b.p(a0, cc, z_at(a0)), b.p(a1, cc, z_at(a1)), b.p(a1, cc, z_at(a1) + 2.6),
-                              b.p(a0, cc, z_at(a0) + 2.6)])
-            faces.append([b.p(a0, c - 0.4, z_at(a0) + 2.6), b.p(a1, c - 0.4, z_at(a1) + 2.6),
-                          b.p(a1, c + 0.4, z_at(a1) + 2.6), b.p(a0, c + 0.4, z_at(a0) + 2.6)])
-        b.mesh("parapet", faces, CONCRETE)
-        return
     wood = style == "wood"
     rgb, steel = (TIMBER_DARK, False) if wood else (STEEL, True)
+    if style == "plain":
+        # Unrecoloured steel railing on a concrete kerb: the concrete family's middle sprites
+        # are shared with the suspension bridges' even middle tiles (bridge_land.h).
+        b.box("kerb", 0, 16, c - 0.5, c + 0.5, z_at(0), z_at(0) + 0.9, CONCRETE)
+        rgb, steel = RAIL_GREY, False
     for i in range(5):
         a = 0.6 + 14.8 * i / 4
         b.box(f"post{i}", a - 0.25, a + 0.25, c - 0.25, c + 0.25, z_at(a), z_at(a) + 3.6, rgb, steel)
-    for h in (1.8, 3.4):
+    for h in (1.8, RAIL_TOP):
         b.beam(f"rail{h}", 0, z_at(0) + h, 16, z_at(16) + h, c, 0.3, rgb, steel)
 
 
@@ -172,11 +168,12 @@ def cable_profile(piece):
     """(pylons as a positions, cable height above the deck at a = 0 and a = 16) per section."""
     # The cable falls from the end pylons to railing height and rises again in two-tile waves
     # (inner_north falls, inner_south rises, see CalcBridgePiece); an odd middle tile carries a
-    # centre pylon, an even one is plain deck where the cable reaches the railing.
+    # centre pylon, an even one is plain deck (the concrete bridge's sprites) whose top rail
+    # continues the cable where it lands on the railing.
     return {
         "north": ([0.8], (24, 12)), "south": ([15.2], (12, 24)),
-        "inner_north": ([], (12, 2.5)), "inner_south": ([], (2.5, 12)),
-        "middle_odd": ([8.0], (12, 12)), "middle_even": ([], (2.5, 2.5)),
+        "inner_north": ([], (12, RAIL_TOP)), "inner_south": ([], (RAIL_TOP, 12)),
+        "middle_odd": ([8.0], (12, 12)), "middle_even": ([], (RAIL_TOP, RAIL_TOP)),
     }[piece]
 
 
@@ -273,7 +270,7 @@ def superstructure(b, fam, piece, c):
     if fam == "wood":
         railing(b, c, "wood")
     elif fam == "concrete":
-        railing(b, c, "concrete")
+        railing(b, c, "plain")
     elif fam == "archgirder":
         arch(b, c)
     elif fam == "girder":
@@ -347,12 +344,15 @@ def build(sprite, uses, cc_pass):
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     outdir = argv[0] if argv else os.path.join(os.getcwd(), "render", "bridges")
-    usage_path = argv[1] if len(argv) > 1 else os.path.join(HERE, "..", "ref", "bridges", "usage.json")
+    usage_path = argv[1] if len(argv) > 1 and not argv[1].startswith("--") else os.path.join(HERE, "..", "ref", "bridges", "usage.json")
     usage = json.load(open(usage_path))
     for zoom in ZOOMS:
         os.makedirs(os.path.join(outdir, f"z{zoom}"), exist_ok=True)
+    families = argv[argv.index("--families") + 1].split(",") if "--families" in argv else None
     for sid, uses in usage.items():
         if not {x["transport"] for x in uses} & {"rail", "road"}:
+            continue
+        if families and family_of(uses) not in families:
             continue
         for zoom in ZOOMS:
             for cc_pass in (False, True):

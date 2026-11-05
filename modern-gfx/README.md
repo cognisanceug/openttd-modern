@@ -160,7 +160,10 @@ sloped tile in Blender, so slopes and tile joins stay exact.
 
 Bridges are built from the map tools/bridge_usage.py makes of of how table/bridge_land.h
 uses each sprite (head, or back/front/pillar of a section of a bridge family).
-Steel parts carry palette index 75 in a mask, inside the 70-79 range that the
+The concrete bridge's middle sprites (2493-2498) double as the suspension
+bridges' even middle tiles (table/bridge_land.h), so they carry a kerb and a
+plain steel railing that suits both, and the suspension cable lands on its top
+rail at the neighbouring tiles. Steel parts carry palette index 75 in a mask, inside the 70-79 range that the
 game's PALETTE_TO_STRUCT_* recolours remap, so shared sprites still appear
 oxide, yellow, red, brown, white or concrete-grey per bridge type.
 
