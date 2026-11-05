@@ -32,10 +32,10 @@ Foundations: the 14 leveled foundations 990-1003 and the 90-sprite Action 5
 FOUNDATIONS_SLOPES_HALFTILES block, cropped like overlays (fully empty
 variants become a 1x1 transparent sprite).
 
-Trees (all temperate bases 1576-1715, 0x6AD packed from the 0x63D renders): the cast shadow (<sprite>_shadow.png, shadow-catcher alpha)
+Trees (all 62 tree bases of all climates, 1576-2009): the cast shadow (<sprite>_shadow.png, shadow-catcher alpha)
 is tinted and faded to the map study's soft shadow, the tree
 (<sprite>_tree.png) is laid over it, and the result is cropped to its
-bounding box. The drawing origin sits at canvas pixel (31z, 64z).
+bounding box. The drawing origin sits at canvas pixel (31z, 80z).
 
 Each block gets an 8bpp fallback (DOS palette) plus 32bpp sprites at 1x, 2x, 4x.
 
@@ -90,8 +90,10 @@ RAIL_SLOPES = {12: 8, 13: 4, 14: 1, 15: 2, 16: 14, 17: 7, 18: 11, 19: 13, 20: 12
 ROAD_SLOPES = {11: 12, 12: 6, 13: 3, 14: 9}
 COAST_ROCKS_OFFSET = 95  # SPR_OVERLAY_ROCKS_WATER_COAST - SPR_OVERLAY_ROCKS_BASE
 # (block name, first sprite, first rendered sprite)
-TREE_BLOCKS = tuple((f"tree_{b:x}", b, 1597 if b == 0x6AD else b) for b in range(0x628, 0x6AD + 1, 7))
-TREE_ANCHOR_Y = 64
+# All tree bases of all climates: temperate 0x628-0x6A6, sub-arctic 0x6AD-0x716 (with snow from 0x6E5),
+# sub-tropical 0x71D-0x794, toyland 0x79B-0x7D3.
+TREE_BLOCKS = tuple((f"tree_{b:x}", b, b) for b in range(0x628, 0x7D3 + 1, 7))
+TREE_ANCHOR_Y = 80
 SHADOW_RGB = (24, 40, 34)
 SHADOW_ALPHA = 0.22
 # DOS palette indices safe for plain colour: no transparency (0), company colours
@@ -188,6 +190,8 @@ def tree_sprite(render_dir, sprite, zoom):
     # Drop near-invisible fringe so the crop stays tight.
     a = out.getchannel("A").point(lambda v: v if v >= 4 else 0)
     out.putalpha(a)
+    if a.getbbox() is None:  # nothing left (the burst toyland balloon)
+        return Image.new("RGBA", (1, 1), (0, 0, 0, 0)), 0, 0
     left, top, right, bottom = a.getbbox()
     return out.crop((left, top, right, bottom)), left - 31 * zoom, top - TREE_ANCHOR_Y * zoom
 
