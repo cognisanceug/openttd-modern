@@ -50,8 +50,15 @@
 #include "company_gui.h"
 #include "gui.h"
 #include "rail_gui.h"
+#include "rail_cmd.h"
 #include "road_gui.h"
 #include "terraform_gui.h"
+#include "train.h"
+#include "depot_func.h"
+#include "group_gui.h"
+#include "vehicle_gui.h"
+#include "vehicle_cmd.h"
+#include "engine_func.h"
 #include "town.h"
 #include "video/video_driver.hpp"
 
@@ -1799,6 +1806,49 @@ static bool ConAlias(std::span<std::string_view> argv)
 }
 
 /**
+ * Get a train of the local company for GUI screenshots, making a depot with a train first if there is none.
+ * The depot is placed on the first free tile around the largest town.
+ * @return The front engine, or nullptr if no depot or train could be built.
+ */
+static const Train *GetScreenshotTrain()
+{
+	for (const Train *t : Train::Iterate()) {
+		if (t->IsFrontEngine() && t->owner == _local_company) return t;
+	}
+	const Town *best = nullptr;
+	for (const Town *t : Town::Iterate()) {
+		if (best == nullptr || t->cache.population > best->cache.population) best = t;
+	}
+	if (best == nullptr) return nullptr;
+
+	Backup<CompanyID> cur_company(_current_company, _local_company);
+	TileIndex depot = INVALID_TILE;
+	for (int r = 3; r < 16 && depot == INVALID_TILE; r++) {
+		for (int dx = -r; dx <= r && depot == INVALID_TILE; dx++) {
+			TileIndex tile = TileAddWrap(best->xy, dx, r);
+			if (tile == INVALID_TILE) continue;
+			if (Command<Commands::BuildRailDepot>::Do(DoCommandFlag::Execute, tile, RAILTYPE_RAIL, DiagDirection::SE).Succeeded()) depot = tile;
+		}
+	}
+	if (depot != INVALID_TILE) {
+		/* An engine first, then two wagons, which join it in the depot. */
+		for (bool wagon : {false, true, true}) {
+			for (const Engine *e : Engine::IterateType(VehicleType::Train)) {
+				if (!IsEngineBuildable(e->index, VehicleType::Train, _local_company)) continue;
+				if ((e->VehInfo<RailVehicleInfo>().railveh_type == RailVehicleType::Wagon) != wagon) continue;
+				if (std::get<0>(Command<Commands::BuildVehicle>::Do(DoCommandFlag::Execute, depot, e->index, false, INVALID_CARGO, ClientID::Invalid)).Succeeded()) break;
+			}
+		}
+	}
+	cur_company.Restore();
+
+	for (const Train *t : Train::Iterate()) {
+		if (t->IsFrontEngine() && t->owner == _local_company) return t;
+	}
+	return nullptr;
+}
+
+/**
  * Open a window by name, for GUI screenshots from scripts.
  * @param name Name of the window, see ConShowWindow.
  */
@@ -1806,6 +1856,10 @@ static void ShowWindowByName(std::string_view name)
 {
 	if (name == "options") {
 		ShowGameOptions();
+		return;
+	}
+	if (name == "close_all") {
+		CloseAllNonVitalWindows();
 		return;
 	}
 	if ((name == "town" || name == "goto_town" || name == "title_view") && Town::GetNumItems() > 0) {
@@ -1827,6 +1881,10 @@ static void ShowWindowByName(std::string_view name)
 	}
 	if (_game_mode != GameMode::Normal || !Company::IsValidID(_local_company)) return;
 	if (name == "build_rail") ShowBuildRailToolbar(RAILTYPE_RAIL);
+	if (name == "build_elrail") ShowBuildRailToolbar(RAILTYPE_ELECTRIC);
+	if (name == "build_mono") ShowBuildRailToolbar(RAILTYPE_MONO);
+	if (name == "build_maglev") ShowBuildRailToolbar(RAILTYPE_MAGLEV);
+	if (name == "build_signals") ShowSignalBuilder(ShowBuildRailToolbar(RAILTYPE_RAIL));
 	if (name == "build_road") ShowBuildRoadToolbar(ROADTYPE_ROAD);
 	if (name == "build_tram") ShowBuildRoadToolbar(ROADTYPE_TRAM);
 	if (name == "build_water") ShowBuildDocksToolbar();
@@ -1834,14 +1892,26 @@ static void ShowWindowByName(std::string_view name)
 	if (name == "landscaping") ShowTerraformToolbar();
 	if (name == "finances") ShowCompanyFinances(_local_company);
 	if (name == "company") ShowCompany(_local_company);
+	if (name == "train_list") ShowVehicleListWindow(_local_company, VehicleType::Train);
+	if (name == "groups") ShowCompanyGroup(_local_company, VehicleType::Train);
+	if (name == "depot" || name == "vehicle" || name == "orders") {
+		const Train *t = GetScreenshotTrain();
+		if (t == nullptr) return;
+		if (name == "depot") ShowDepotWindow(t->tile, VehicleType::Train);
+		if (name == "vehicle") ShowVehicleViewWindow(t);
+		if (name == "orders") ShowOrdersWindow(t);
+	}
 }
 
 /** Open a window by name, for GUI screenshots from scripts. @copydoc IConsoleCmdProc */
 static bool ConShowWindow(std::span<std::string_view> argv)
 {
-	static const std::initializer_list<std::string_view> names = {"build_rail", "build_road", "build_tram", "build_water", "build_air", "landscaping", "town", "goto_town", "title_view", "finances", "company", "options"};
+	static const std::initializer_list<std::string_view> names = {
+		"build_rail", "build_elrail", "build_mono", "build_maglev", "build_signals", "build_road", "build_tram", "build_water", "build_air", "landscaping",
+		"town", "goto_town", "title_view", "finances", "company", "options", "train_list", "groups", "depot", "vehicle", "orders", "close_all"};
 	if (argv.size() != 2 || std::ranges::find(names, argv[1]) == names.end()) {
-		IConsolePrint(CC_HELP, "Open a window. Usage: 'show_window <build_rail | build_road | build_tram | build_water | build_air | landscaping | town | goto_town | title_view | finances | company | options>'.");
+		IConsolePrint(CC_HELP, "Open a window. Usage: 'show_window <name>'. Names: build_rail, build_elrail, build_mono, build_maglev, build_signals, build_road, build_tram, build_water, build_air, landscaping,");
+		IConsolePrint(CC_HELP, "  town, goto_town, title_view, finances, company, options, train_list, groups, depot, vehicle, orders, close_all. 'depot', 'vehicle' and 'orders' build a depot with a train if the company has none.");
 		return true;
 	}
 

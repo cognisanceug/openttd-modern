@@ -79,7 +79,6 @@ static void HandleStationPlacement(TileIndex start, TileIndex end);
 static void ShowBuildTrainDepotPicker(Window *parent);
 static void ShowBuildWaypointPicker(Window *parent);
 static Window *ShowStationBuilder(Window *parent);
-static void ShowSignalBuilder(Window *parent);
 
 /**
  * Check whether a station type can be build.
@@ -1768,8 +1767,9 @@ static WindowDesc _signal_builder_desc(
  * Open the signal selection window
  * @param parent The parent window.
  */
-static void ShowSignalBuilder(Window *parent)
+void ShowSignalBuilder(Window *parent)
 {
+	if (parent == nullptr) return;
 	new BuildSignalWindow(_signal_builder_desc, parent);
 }
 

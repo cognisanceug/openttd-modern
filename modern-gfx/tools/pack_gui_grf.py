@@ -3,12 +3,16 @@
 A separate NewGRF from modern_terrain.grf, so the interface can be built and
 enabled on its own. It holds the title screen logo, one sprite per letter
 (tools/make_logo.py): T 4836, n 4839, p 4841, O 4842 in the base set, e and D
-in the OpenTTD GUI block (OTTD_GUI 12, 13); and the main toolbar and build menu
+in the OpenTTD GUI block (OTTD_GUI 12, 13); the main toolbar and build menu
 icons (tools/make_icons.py), 20 x 20 px at 1x (station, bridge and airport
-40 x 20), see ICON_BLOCKS.
+40 x 20), see ICON_BLOCKS; and the other interface sprites
+(tools/make_gui_icons.py: monorail and maglev build icons, cursors, vehicle
+and depot buttons, window glyphs, cargo and status icons) in the sizes and
+offsets of the originals, grouped into runs of consecutive sprites, see
+gui_blocks().
 Every block gets an 8bpp fallback plus 32bpp sprites at 1x, 2x, 4x.
 
-Usage: pack_gui_grf.py <render-dir> <nml-dir>   (render-dir holds logo/ and icons/)
+Usage: pack_gui_grf.py <render-dir> <nml-dir>   (render-dir holds logo/, icons/ and gui_icons/)
 """
 
 import os
@@ -17,6 +21,7 @@ import sys
 
 from PIL import Image
 
+from make_gui_icons import SPRITES
 from pack_grf import ZOOMS, sheet_block
 
 LOGO_BLOCKS = (
@@ -87,6 +92,36 @@ ICON_BLOCKS = (
 )
 
 
+# make_gui_icons block -> NML block header; "base" sprites are replaced by number.
+GUI_HEADERS = {
+    "base": "replace {name}({index}, {file})",
+    "gui": "replacenew {name}(OTTD_GUI, {file}, {index})",
+    "catenary": "replacenew {name}(CATENARY, {file}, {index})",
+    "tramway": "replacenew {name}(TRAMWAY, {file}, {index})",
+    "canals": "replacenew {name}(CANALS, {file}, {index})",
+}
+
+
+def gui_blocks():
+    """Runs of consecutive sprites of make_gui_icons: (block name, header, keys in sprite order)."""
+    by_index = sorted(SPRITES, key=lambda k: (SPRITES[k][0], SPRITES[k][1]))
+    runs = []
+    for key in by_index:
+        block, index = SPRITES[key][:2]
+        if runs and runs[-1][0] == block and runs[-1][2] + 1 == index:
+            runs[-1][2] = index
+            runs[-1][3].append(key)
+        else:
+            runs.append([block, index, index, [key]])
+    return [(f"gui_{block}_{first}", GUI_HEADERS[block].replace("{index}", str(first)), keys)
+            for block, first, _, keys in runs]
+
+
+def gui_sprite(gui_dir, key, zoom):
+    _, _, (_, _, xo, yo), _, _ = SPRITES[key]
+    return Image.open(os.path.join(gui_dir, f"z{zoom}", f"{key}.png")).convert("RGBA"), xo * zoom, yo * zoom
+
+
 def icon_sprite(icon_dir, name, zoom):
     return Image.open(os.path.join(icon_dir, f"z{zoom}", f"{name}.png")).convert("RGBA"), 0, 0
 
@@ -120,6 +155,10 @@ def main():
     for name, header, icons in ICON_BLOCKS:
         nml.append(sheet_block(name, header, icons, {z: [icon_sprite(icon_dir, i, z) for i in icons] for z in ZOOMS},
                                gfx_dir))
+    gui_dir = os.path.join(render_dir, "gui_icons")
+    for name, header, keys in gui_blocks():
+        nml.append(sheet_block(name, header, keys, {z: [gui_sprite(gui_dir, k, z) for k in keys] for z in ZOOMS},
+                               gfx_dir))
     open(os.path.join(nml_dir, "modern_gui.nml"), "w").write("\n".join(nml))
 
     lang_dir = os.path.join(nml_dir, "lang_gui")
@@ -127,7 +166,7 @@ def main():
     open(os.path.join(lang_dir, "english.lng"), "w").write(
         "##grflangid 0x01\n"
         "STR_GUI_GRF_NAME :Modern Interface\n"
-        "STR_GUI_GRF_DESC :Interface graphics matching Modern Terrain: the title screen logo, toolbar and build menu icons. Licence: GPL v2.\n"
+        "STR_GUI_GRF_DESC :Interface graphics matching Modern Terrain: the title screen logo, toolbar, build menu and window icons and cursors. Licence: GPL v2.\n"
     )
     nmlc = os.path.join(os.path.dirname(sys.executable), "nmlc")
     subprocess.run([nmlc, "-c", "--lang-dir", "lang_gui", "--grf", "modern_gui.grf", "modern_gui.nml"],
