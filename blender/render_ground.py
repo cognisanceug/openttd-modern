@@ -13,6 +13,10 @@ Kinds (each covers the 19 slope shapes in OpenTTD's order, see SPRITE_SLOPES):
   farm0-8  4126+19k farm field stages (bare, sown ... golden, stubble, hay bales)
   snow1-4, desert1-4  4493+19(k-1) snow / desert densities; only on request, into
            their own outdir (the sprite numbers are shared by both climates)
+  toybare, toygrass13, toygrass23, toygrass, toyrough, toyrocky1, toyrocky2, toyshore
+           toyland ground: the same sprites as bare ... rocky2 (and the shores), from the toy_*
+           textures, with pompoms on rough land and toy blocks and marbles on rocky land;
+           only on request, into their own outdir (render/toyland)
 Water kinds (output files are named after the sprite slot, not a base sprite):
   water    4061      open water (sea, lakes, flat river), unshaded
   shore    shore0-17 Action 5 COAST block; index -> slope as in DrawShoreTile()
@@ -78,6 +82,12 @@ KINDS.update(FIELD_KINDS)
 # are never in the default kind list; render each into its own outdir (render/snow,
 # render/desert), as the sprite numbers collide.
 CLIMATE_KINDS = {f"{c}{k}": (4493 + 19 * (k - 1), f"{c}{k}", None) for c in ("snow", "desert") for k in range(1, 5)}
+# Toyland: same sprite numbers as the temperate kinds, so render into render/toyland.
+TOY_KINDS = {"toybare": (3924, "toy_bare", None), "toygrass13": (3943, "toy_grass13", None),
+             "toygrass23": (3962, "toy_grass23", None), "toygrass": (3981, "toy_grass", None),
+             "toyrough": (4000, "toy_rough", "pompoms"), "toyrocky1": (4023, "toy_rocky", "blocks"),
+             "toyrocky2": (4042, "toy_rocky2", "blocks")}
+CLIMATE_KINDS.update(TOY_KINDS)
 ROUGH_FLAT_VARIANTS = (4019, 4020, 4021, 4022)
 WATER_KINDS = ("water", "shore", "river", "coastrocks", "riverbank", "canaldike", "infra")
 # Sloped track sprites 1023-1034 (offset from 1011 -> slope), see _track_sloped_sprites.
@@ -108,6 +118,11 @@ RIVER_SLOPES = (6, 12, 3, 9)
 TUFT_COLORS = ((90, 150, 76), (116, 178, 82), (104, 164, 78), (186, 196, 104))
 SHRUB_COLOR = (78, 140, 92)
 ROCK_COLORS = ((138, 134, 126), (120, 118, 112), (156, 150, 140))
+# Toyland scatter: grass tufts in the felt greens, candy pompoms, toy blocks, pink pebbles.
+TOY_TUFT_COLORS = ((92, 168, 84), (112, 194, 104), (104, 182, 90))
+CANDY_COLORS = ((240, 136, 166), (248, 208, 92), (122, 182, 234), (186, 150, 222))
+BLOCK_COLORS = ((222, 92, 98), (246, 200, 84), (90, 150, 224), (238, 236, 228), (120, 196, 120))
+PEBBLE_COLORS = ((212, 118, 140), (232, 156, 170), (186, 96, 118))
 
 
 def parse_args():
@@ -127,7 +142,7 @@ def jobs(kinds):
         if kind == "water":
             out.append((4061, 0, kind, 4061))
             continue
-        if kind == "shore":
+        if kind in ("shore", "toyshore"):
             out += [(f"shore{i}", slope, kind, 5000 + i) for i, slope in enumerate(SHORE_SLOPES)]
             continue
         if kind == "river":
@@ -147,7 +162,7 @@ def jobs(kinds):
             continue
         first = {**KINDS, **CLIMATE_KINDS}[kind][0]
         out += [(first + k, slope, kind, first + k) for k, slope in enumerate(oc.SPRITE_SLOPES)]
-        if kind == "rough":
+        if kind in ("rough", "toyrough"):
             out += [(s, 0, kind, s) for s in ROUGH_FLAT_VARIANTS]
     return out
 
@@ -361,6 +376,8 @@ def ground_material(kind, piece=None):
         return st.toon_material("river", image_path=tex("water"), params=st.GROUND)
     if kind == "shore":
         return st.shore_material(tex("water"), tex("sand"), tex("grass"))
+    if kind == "toyshore":
+        return st.shore_material(tex("water"), tex("sand"), tex("toy_grass"))
     if kind == "riverbank":
         return st.bank_material(tex(f"riverbank{piece}"))
     if kind == "canaldike":
@@ -371,13 +388,40 @@ def ground_material(kind, piece=None):
             return st.bank_material(path)
         return st.toon_material("infra", image_path=path, params=st.GROUND, extension="EXTEND")
     name = {**KINDS, **CLIMATE_KINDS}[kind][1]
-    if kind == "rough" and piece in ROUGH_FLAT_VARIANTS:
-        name = f"rough{ROUGH_FLAT_VARIANTS.index(piece) + 1}"  # own texture variant, see make_rough_rocky()
+    if kind in ("rough", "toyrough") and piece in ROUGH_FLAT_VARIANTS:
+        name = f"{name}{ROUGH_FLAT_VARIANTS.index(piece) + 1}"  # own texture variant, see make_rough_rocky()
     return st.toon_material("ground", image_path=tex(name), params=st.GROUND)
 
 
+def add_blocks(slope, rng, count, materials):
+    """Toy building blocks: cubes and a few long bricks, turned and slightly sunk into the ground."""
+    placed = []
+    for i in range(count * 6):
+        if len(placed) >= count:
+            break
+        r = rng.uniform(0.03, 0.045)
+        (x, y), = scatter_points(rng, 1, 0.04 + 1.5 * r)
+        if any((x - px) ** 2 + (y - py) ** 2 < (1.6 * (r + pr)) ** 2 for px, py, pr in placed):
+            continue
+        placed.append((x, y, r))
+        sx = r * (2.0 if rng.random() < 0.3 else 1.0)
+        bm = bmesh.new()
+        bmesh.ops.create_cube(bm, size=2.0)
+        m = (Matrix.Translation((x, y, surface_z(slope, x, y) + r * 0.8))
+             @ Matrix.Rotation(rng.uniform(0, math.tau), 4, "Z") @ Matrix.Diagonal((sx, r, r, 1)))
+        add_mesh(f"block{i}", bm, rng.choice(materials), m)
+
+
+def add_marbles(slope, rng, count, materials):
+    for i, (x, y) in enumerate(scatter_points(rng, count, 0.06)):
+        r = rng.uniform(0.02, 0.03)
+        bm = bmesh.new()
+        bmesh.ops.create_icosphere(bm, subdivisions=2, radius=r)
+        add_mesh(f"marble{i}", bm, rng.choice(materials), Matrix.Translation((x, y, surface_z(slope, x, y) + r * 0.8)))
+
+
 def add_scatter(kind, slope, seed):
-    scatter = KINDS[kind][2] if kind in KINDS else None
+    scatter = {**KINDS, **TOY_KINDS}[kind][2] if kind in KINDS or kind in TOY_KINDS else None
     rng = random.Random(seed)
     if scatter == "tufts":
         mats = [st.toon_material(f"tuft{i}", c) for i, c in enumerate(TUFT_COLORS)]
@@ -389,6 +433,21 @@ def add_scatter(kind, slope, seed):
         mats = [st.toon_material(f"rock{i}", c) for i, c in enumerate(ROCK_COLORS)]
         add_rocks(slope, rng, rng.randint(7, 11), mats, spread=True)
         add_tufts(slope, rng, 10, [st.toon_material("tuft", TUFT_COLORS[0])])
+    elif scatter == "pompoms":
+        add_tufts(slope, rng, 30, [st.toon_material(f"tuft{i}", c) for i, c in enumerate(TOY_TUFT_COLORS)])
+        candy = [st.toon_material(f"candy{i}", c) for i, c in enumerate(CANDY_COLORS)]
+        for i, (x, y) in enumerate(scatter_points(rng, rng.randint(2, 4), 0.12)):
+            r = rng.uniform(0.035, 0.05)
+            bm = bmesh.new()
+            bmesh.ops.create_icosphere(bm, subdivisions=1, radius=r)
+            m = (Matrix.Translation((x, y, surface_z(slope, x, y) + r * 0.6))
+                 @ Matrix.Rotation(rng.uniform(0, math.tau), 4, "Z"))
+            add_mesh(f"pompom{i}", bm, rng.choice(candy), m)
+    elif scatter == "blocks":
+        pebbles = [st.toon_material(f"pebble{i}", c) for i, c in enumerate(PEBBLE_COLORS)]
+        add_rocks(slope, rng, rng.randint(5, 8), pebbles, spread=True)
+        add_blocks(slope, rng, rng.randint(2, 4), [st.toon_material(f"block{i}", c) for i, c in enumerate(BLOCK_COLORS)])
+        add_marbles(slope, rng, rng.randint(1, 3), [st.toon_material(f"marble{i}", c) for i, c in enumerate(CANDY_COLORS)])
 
 
 def calibration_material():

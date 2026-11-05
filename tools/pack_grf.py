@@ -25,7 +25,10 @@ Farm fields 4126-4296 (nine stages, 19 slopes each) are packed like ground
 tiles; their fences 4090-4125 (six types) like overlays. The GRF also sets
 second_rocky_tileset, so rocky land alternates between the sets 4023 and 4042.
 Snow (arctic) and desert (tropic) densities 4493-4568 come from render/snow and
-render/desert and are replaced only in their climate.
+render/desert and are replaced only in their climate. Toyland loads its own
+ground into the same sprites 3924-4060 (table/landscape_sprite.h), so in toyland
+an if-block replaces them again from render/toyland, together with the shores,
+whose meadow band is the toyland grass.
 
 Signals: 1275-1290 (electric block signals) and the 240-sprite Action 5
 PRE_SIGNAL_SEMAPHORE_PBS block, indexed like DrawSingleSignal(); slots the game
@@ -87,7 +90,7 @@ OTTD_GUI helipad), docks 2727-2732, the buoy 693 and the oil rig 2096-2105: see
 tools/pack_airport.py.
 
 Usage: pack_grf.py <render-dir> <ref/ground> <nml-dir>
-  (render-dir holds ground/, snow/, desert/, trees/, foundations/, fences/, signals/, depots/, bridges/,
+  (render-dir holds ground/, snow/, desert/, toyland/, trees/, foundations/, fences/, signals/, depots/, bridges/,
    tunnels/, stations/, catenary/, houses/, objects/, industries/, airports/)
 """
 
@@ -650,6 +653,19 @@ def main():
             parts.append(sheet_block(f"{cdir}{k + 1}", f"replace {{name}}({first}, {{file}})",
                                      list(range(first, first + 19)), tiles, gfx_dir))
         nml.append(f"if (climate == {climate}) {{\n" + "\n".join(parts) + "}\n")
+    # Toyland: its own ground in 3924-4060 and shores with the toyland meadow.
+    toy_dir = os.path.join(render_dir, "toyland")
+    parts = []
+    for name, first, count in GROUND_BLOCKS:
+        tiles = {z: [ground_sprite(toy_dir, first + k, z, meta[str(first + k)]) for k in range(count)] for z in ZOOMS}
+        parts.append(sheet_block(f"toy_{name}", f"replace {{name}}({first}, {{file}})",
+                                 [first + k for k in range(count)], tiles, gfx_dir))
+    shores = WATER_BLOCKS[1][2]
+    tiles = {z: [water_anim.animate(ground_sprite(toy_dir, n, z, grass_meta(slope)), z) for n, slope in shores]
+             for z in ZOOMS}
+    parts.append(sheet_block("toy_water_shore", WATER_BLOCKS[1][1], [n for n, _ in shores], tiles, gfx_dir,
+                             mask_index=None))
+    nml.append("if (climate == CLIMATE_TOYLAND) {\n" + "\n".join(parts) + "}\n")
     nml.append(tram_extra_blocks(render_dir, gfx_dir))
     nml.append(oneway_block(render_dir, gfx_dir))
     nml.append(guideway_blocks(render_dir, grass_meta, gfx_dir))
