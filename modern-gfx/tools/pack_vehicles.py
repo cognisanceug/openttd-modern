@@ -18,6 +18,12 @@ needs no sprites of its own. The helicopter rotor is one sprite for every
 direction, 3901 stopped and 3902-3904 turning; the turning frames are the
 blades over a faint disc. Toyland's base graphics replace 0xE9D-0xECC (its six
 aircraft) and the rotors, so a climate block replaces those again.
+
+Road vehicles: 72 sprite sets 0xC14-0xE4B, base + Direction (_roadveh_images in
+roadveh_cmd.cpp); a lorry at least half full shows base + _roadveh_full_adder,
+so loaded lorries are sets of their own (the _l models). Several engines and
+climates share a set. Toyland's base graphics replace 0xC14-0xCB3 with its 20
+sets, which a climate block replaces again with the toy models.
 """
 
 import json
@@ -57,6 +63,30 @@ TOYLAND_TRAINS = [
     [(f"t_{n}", 0xAB5 + 4 * i, 4) for i, n in enumerate(
         ["mail", "sugar", "sugar_full", "floss", "floss_full", "toffee", "toffee_full", "bubble", "bubble_full", "cola",
          "cola_full", "sweet", "toy", "battery", "battery_full", "fizzy", "fizzy_full", "plastic", "plastic_full"])]
+ROAD_VEHICLES = [
+    ("bus2", 0xC14), ("coal2_e", 0xC1C), ("mail2", 0xC24), ("oil2", 0xC2C), ("live2", 0xC34), ("goods2", 0xC3C),
+    ("food2", 0xC44), ("grain2_e", 0xC4C), ("wood2_e", 0xC54), ("flat2_e", 0xC5C), ("ore2_e", 0xC64),
+    ("armour2", 0xC6C), ("coal2_l", 0xC74), ("grain2_l", 0xC7C), ("wood2_l", 0xC84), ("steel2_l", 0xC8C),
+    ("iron2_l", 0xC94), ("paper2_l", 0xC9C), ("copper2_l", 0xCA4), ("water2", 0xCAC), ("fruit2_e", 0xCB4),
+    ("rubber2_e", 0xCBC), ("fruit2_l", 0xCC4), ("rubber2_l", 0xCCC),
+    ("bus1", 0xCD4), ("coal1_e", 0xCDC), ("mail1", 0xCE4), ("oil1", 0xCEC), ("live1", 0xCF4), ("goods1", 0xCFC),
+    ("food1", 0xD04), ("grain1_e", 0xD0C), ("wood1_e", 0xD14), ("flat1_e", 0xD1C), ("ore1_e", 0xD24),
+    ("armour1", 0xD2C), ("coal1_l", 0xD34), ("grain1_l", 0xD3C), ("wood1_l", 0xD44), ("steel1_l", 0xD4C),
+    ("iron1_l", 0xD54), ("paper1_l", 0xD5C), ("copper1_l", 0xD64), ("water1", 0xD6C), ("fruit1_e", 0xD74),
+    ("rubber1_e", 0xD7C), ("fruit1_l", 0xD84), ("rubber1_l", 0xD8C),
+    ("bus3", 0xD94), ("coal3_e", 0xD9C), ("mail3", 0xDA4), ("oil3", 0xDAC), ("live3", 0xDB4), ("goods3", 0xDBC),
+    ("food3", 0xDC4), ("grain3_e", 0xDCC), ("wood3_e", 0xDD4), ("flat3_e", 0xDDC), ("ore3_e", 0xDE4),
+    ("armour3", 0xDEC), ("coal3_l", 0xDF4), ("grain3_l", 0xDFC), ("wood3_l", 0xE04), ("steel3_l", 0xE0C),
+    ("iron3_l", 0xE14), ("paper3_l", 0xE1C), ("copper3_l", 0xE24), ("water3", 0xE2C), ("fruit3_e", 0xE34),
+    ("rubber3_e", 0xE3C), ("fruit3_l", 0xE44), ("rubber3_l", 0xE4C),
+]
+TOYLAND_ROAD_VEHICLES = [
+    ("toybus", 0xC14), ("toysugar_e", 0xC1C), ("toysugar_l", 0xC24), ("toycola_e", 0xC2C), ("toycola_l", 0xC34),
+    ("toyfloss_e", 0xC3C), ("toyfloss_l", 0xC44), ("toytoffee_e", 0xC4C), ("toytoffee_l", 0xC54), ("toyvan", 0xC5C),
+    ("toymail", 0xC64), ("toysweets", 0xC6C), ("toybattery_e", 0xC74), ("toybattery_l", 0xC7C),
+    ("toyfizzy_e", 0xC84), ("toyfizzy_l", 0xC8C), ("toyplastic_e", 0xC94), ("toyplastic_l", 0xC9C),
+    ("toybubble_e", 0xCA4), ("toybubble_l", 0xCAC),
+]
 ROTOR_DISC_ALPHA, ROTOR_BLADE_ALPHA = 0.28, 0.55
 
 
@@ -145,3 +175,18 @@ def train_blocks(render_dir, gfx_dir, sheet_block):
         return out
     return block(TRAIN_ENGINES + TRAIN_WAGONS) + [
         "if (climate == CLIMATE_TOYLAND) {\n" + "\n".join(block(TOYLAND_TRAINS)) + "}\n"]
+
+
+def road_vehicle_blocks(render_dir, gfx_dir, sheet_block):
+    veh_dir = os.path.join(render_dir, "vehicles")
+    meta = json.load(open(os.path.join(veh_dir, "meta.json")))
+
+    def block(sets):
+        out = []
+        for name, first in sets:
+            sprites = {z: [vehicle_sprite(veh_dir, name, d, z, meta) for d in range(8)] for z in ZOOMS}
+            out.append(sheet_block(f"roadveh_{name}", "replace {name}(%d, {file})" % first,
+                                   [f"{name} dir {d}" for d in range(8)], sprites, gfx_dir, mask_index=COMPANY_INDEX))
+        return out
+    return block(ROAD_VEHICLES) + [
+        "if (climate == CLIMATE_TOYLAND) {\n" + "\n".join(block(TOYLAND_ROAD_VEHICLES)) + "}\n"]
