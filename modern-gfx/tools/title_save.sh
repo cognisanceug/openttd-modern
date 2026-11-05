@@ -5,9 +5,10 @@
 # Usage: [SEED=n] [BIN=path/to/openttd] title_save.sh <name>
 set -e
 cd "$(dirname "$0")/.."
+. tools/openttd_dir.sh
 H="$PWD/test-home"
 T="$H/Documents/OpenTTD"
-BIN="${BIN:-../build/openttd}"
+BIN="${BIN:-$OPENTTD/build/openttd}"
 mkdir -p "$T/baseset" "$T/newgrf" "$T/scripts" "$T/save"
 [ -f "$T/baseset/opengfx-8.0.tar" ] || cp "$HOME/Documents/OpenTTD/baseset/opengfx-8.0.tar" "$T/baseset/"
 ln -sf "$PWD/nml/moderngfx.grf" "$T/newgrf/moderngfx.grf"

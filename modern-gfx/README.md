@@ -82,13 +82,14 @@ Requires Blender 4.5 (`brew install --cask blender`) and NML in a venv:
 ```sh
 python3 -m venv .venv && .venv/bin/pip install nml numpy
 B=/Applications/Blender.app/Contents/MacOS/Blender
+export OPENTTD=../openttd-modern   # the OpenTTD Modern checkout: source tables and game build (tools/openttd_dir.sh)
 
 # reference data from OpenGFX (offsets, sizes, masks) and the bridge sprite usage map
-.venv/bin/python tools/bridge_usage.py ../src/table ref/bridges/usage.json
+.venv/bin/python tools/bridge_usage.py "$OPENTTD/src/table" ref/bridges/usage.json
 tar -xf ~/Documents/OpenTTD/baseset/opengfx-8.0.tar -C ref
 .venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfx1_base.grf 3924 4060 ref/ground
 .venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfx1_base.grf 1576 2009 ref/trees
-.venv/bin/python tools/house_table.py ../src/table ref/houses/houses.json
+.venv/bin/python tools/house_table.py "$OPENTTD/src/table" ref/houses/houses.json
 .venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfx1_base.grf 4090 4296 ref/fields   # only to compare, not needed to pack
 
 # textures, renders, checks, GRF
@@ -115,7 +116,7 @@ $B -b --factory-startup -P blender/render_aqueducts.py -- render/aqueducts
 .venv/bin/python tools/make_transport_textures.py render/textures render/textures/infra   # tram decks, ...
 $B -b --factory-startup -P blender/render_infra_extra.py -- render/ground   # sprites from those textures
 $B -b --factory-startup -P blender/render_objects.py -- render/objects
-.venv/bin/python tools/industry_table.py ../src/table ref/industries/industries.json
+.venv/bin/python tools/industry_table.py "$OPENTTD/src/table" ref/industries/industries.json
 .venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfx1_base.grf 2011 2340 ref/industries   # reference sizes only
 .venv/bin/python tools/make_industry_textures.py render/textures/industry   # needs numpy
 .venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfx1_base.grf 4675 4790 ref/industries/toyland   # reference only (also 2341-2364)
@@ -152,7 +153,7 @@ GFX_GRASS=toy $B -b --factory-startup -P blender/render_airports.py -- render/to
 ```
 
 The result is `nml/moderngfx.grf`. To check it in game without touching
-your own OpenTTD config (needs the game built in `../build`):
+your own OpenTTD config (needs the game built in `$OPENTTD/build`):
 
 ```sh
 SEED=5 tools/ingame_shot.sh modern trees_4x       # -> shots/trees_4x.png
@@ -650,7 +651,7 @@ and ModernGFX Interface enabled for new games; without them the default
 .venv/bin/python tools/make_icons.py render/icons
 .venv/bin/python tools/make_gui_icons.py render/gui_icons
 .venv/bin/python tools/pack_gui_grf.py render nml           # -> nml/moderngfx_gui.grf
-SEED=3 tools/title_save.sh title                           # -> shots/title.sav, copy to ../media/baseset/opntitle_modern.dat
+SEED=3 tools/title_save.sh title                           # -> shots/title.sav, copy to "$OPENTTD/media/baseset/opntitle_modern.dat"
 tools/gui_shot.sh classic game game_classic                # rail toolbar, town and finance windows
 TITLE=shots/title.sav tools/gui_shot.sh modern title title_modern
 .venv/bin/python tools/gui_compare.py shots/game_classic.png shots/game_modern.png shots/cmp_game.png
