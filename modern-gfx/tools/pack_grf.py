@@ -386,6 +386,9 @@ def main():
         trees = {z: [tree_sprite(trees_dir, rendered + g, z) for g in range(7)] for z in ZOOMS}
         nml.append(sheet_block(name, f"replace {{name}}({first}, {{file}})",
                                [first + g for g in range(7)], trees, gfx_dir))
+    # Objects, see tools/pack_industry.py.
+    import pack_industry
+    nml += pack_industry.object_blocks(render_dir, gfx_dir, sheet_block)
     open(os.path.join(nml_dir, "modern_terrain.nml"), "w").write("\n".join(nml))
 
     os.makedirs(os.path.join(nml_dir, "lang"), exist_ok=True)
