@@ -24,6 +24,11 @@ from PIL import Image
 from pack_industry import COMPANY_INDEX, ZOOMS, building_sprite, ground_sprite
 
 
+# Sprites rendered from the tile's north corner although the game draws them at this bounding
+# box origin (the hangar fronts reach 14 units back from it, beyond the building canvas).
+BOX_ORIGIN = {name: (14, 0) for name in ("b2655", "b2657", "bx6", "bx8", "bx10", "bx11")}
+
+
 def blank():
     return Image.new("RGBA", (1, 1), (0, 0, 0, 0)), 0, 0, Image.new("L", (1, 1), 0)
 
@@ -52,7 +57,9 @@ def airport_blocks(render_dir, gfx_dir, sheet_block):
         if name in ("gx13", "gx14"):
             return overlay_ground_sprite(d, name, z)
         if os.path.exists(os.path.join(d, f"z{z}", f"{name}_overlay.png")):
-            return building_sprite(d, name, z)
+            im, x, y, mask = building_sprite(d, name, z)
+            ox, oy = BOX_ORIGIN.get(name, (0, 0))
+            return im, x - 2 * (oy - ox) * z, y - (ox + oy) * z, mask
         return ground_sprite(d, name, z)
 
     def named(n):
