@@ -15,6 +15,9 @@ Currently covered (temperate):
 | Action 5 `OVERLAY_ROCKS` 95–113 | rocks on water and coast |
 | 990–1003, Action 5 `FOUNDATIONS_SLOPES_HALFTILES` | all foundations: leveled, inclined, halftile; stone walls, coping on back edges |
 | 1005–1036 | rails: straight, short pieces, cross, junction grounds and single overlays, 12 slopes, double pieces |
+| 1063–1068, 1408–1413 | rail and road depots (shed with gable roof, garage with roller door); company-colour eaves band via recolour mask |
+| 1275–1290, Action 5 `PRE_SIGNAL_SEMAPHORE_PBS` | all signals: light and semaphore; block, entry, exit, combo, path, one-way path; 8 directions, red/green |
+| 2634      | concrete (road depot floor, airport apron) |
 | 1301–1308 | track fences: low-poly post-and-rail, flat, diagonal and sloped |
 | 1313–1350 | roads with pavements (towns) and with grass verges: 19 shapes each incl. slopes and dead ends |
 | 1370–1381 | level crossings, open and barred |
@@ -54,8 +57,10 @@ $B -b --factory-startup -P blender/render_ground.py -- render/ground
 $B -b --factory-startup -P blender/render_trees.py -- render/trees
 $B -b --factory-startup -P blender/render_foundations.py -- render/foundations
 $B -b --factory-startup -P blender/render_fences.py -- render/fences
+$B -b --factory-startup -P blender/render_signals.py -- render/signals
+$B -b --factory-startup -P blender/render_depots.py -- render/depots
 .venv/bin/python tools/check_calibration.py render/ground ref/ground
-.venv/bin/python tools/pack_grf.py render/ground ref/ground render/trees render/foundations render/fences nml
+.venv/bin/python tools/pack_grf.py render ref/ground nml
 ```
 
 The result is `nml/modern_terrain.grf`. To check it in game without touching
@@ -66,7 +71,7 @@ SEED=5 tools/ingame_shot.sh modern trees_4x       # -> shots/trees_4x.png
 SEED=1 tools/ingame_shot.sh modern rocks_4x keep  # leaves the window open
 SEED=2 tools/ingame_shot.sh water coast_4x        # high sea level: coast and coast rocks
 SEED=2 tools/ingame_shot.sh town town_4x          # many towns: foundations, and a river
-SEED=1 tools/infra_shot.sh infra_4x               # InfraTest game script builds rails, roads, crossings
+SEED=1 tools/infra_shot.sh infra_4x               # InfraTest game script builds rails, roads, crossings, signals, depots
 ```
 
 ## Style

@@ -40,6 +40,19 @@ function InfraTest::Start()
 	Check("GSRoad.BuildRoad T(cx - 3", GSRoad.BuildRoad(T(cx - 3, cy + 2), T(cx - 3, cy + 3)));
 	Check("GSRoad.BuildRoad T(cx + 3", GSRoad.BuildRoad(T(cx + 3, cy - 2), T(cx + 4, cy - 2)));
 
+	/* Signals of every type along the X line (electric; semaphores depend on the build date). */
+	Check("signal normal", GSRail.BuildSignal(T(cx - 4, cy), T(cx - 5, cy), GSRail.SIGNALTYPE_NORMAL));
+	Check("signal entry", GSRail.BuildSignal(T(cx - 1, cy), T(cx - 2, cy), GSRail.SIGNALTYPE_ENTRY));
+	Check("signal exit", GSRail.BuildSignal(T(cx + 2, cy), T(cx + 1, cy), GSRail.SIGNALTYPE_EXIT));
+	Check("signal combo", GSRail.BuildSignal(T(cx + 3, cy), T(cx + 4, cy), GSRail.SIGNALTYPE_COMBO));
+	Check("signal pbs", GSRail.BuildSignal(T(cx + 4, cy), T(cx + 3, cy), GSRail.SIGNALTYPE_PBS));
+	Check("signal pbs oneway", GSRail.BuildSignal(T(cx - 2, cy), T(cx - 1, cy), GSRail.SIGNALTYPE_PBS_ONEWAY));
+
+	/* Depots with visible doors: rail facing SW, road facing SE and SW. */
+	Check("rail depot", GSRail.BuildRailDepot(T(cx - 5, cy), T(cx - 4, cy)));
+	Check("road depot SE", GSRoad.BuildRoadDepot(T(cx - 2, cy + 1), T(cx - 2, cy + 2)));
+	Check("road depot SW", GSRoad.BuildRoadDepot(T(cx - 4, cy + 2), T(cx - 3, cy + 2)));
+
 	GSLog.Info("InfraTest done");
 	while (true) this.Sleep(1000);
 }

@@ -17,6 +17,7 @@ Written to <outdir>/<name>.png (RGBA; overlays are transparent off the track):
   road1313-road1331  roads with pavements (towns), 19 shapes
   road1332-road1350  roads with grass verges, 19 shapes
   cross1370-cross1381 level crossings (rail X/Y, open/barred, grass/paved/snow slot)
+  apron2634          concrete slabs (road depot floor, airport apron)
 
 Usage: make_infra_textures.py <render/textures> <outdir> [size]
 """
@@ -43,6 +44,8 @@ PAVING_JOINT = np.array([174, 172, 162.0])
 MARKING = np.array([250, 246, 226.0])
 BARRIER_RED = np.array([214, 58, 52.0])
 POST = np.array([236, 236, 230.0])
+CONCRETE = np.array([180, 180, 174.0])
+CONCRETE_JOINT = np.array([150, 150, 146.0])
 
 BALLAST_HALF = 0.21
 SLEEPER_HALF = 0.17
@@ -246,6 +249,12 @@ def main():
         barred = (k // 2) % 2 == 1
         paved = 4 <= k < 8
         save(crossing_texture(n, grass, axis, barred, paved, noise), os.path.join(outdir, f"cross{1370 + k}.png"))
+    img = np.zeros((n, n, 4))
+    img[..., :3] = CONCRETE * (1 + (noise[..., None] - 0.5) * 0.06)
+    img[..., 3] = 1.0
+    joint = (np.mod((x + 0.5) * 4, 1) < 0.012) | (np.mod((y + 0.5) * 4, 1) < 0.012)
+    blend(img, CONCRETE_JOINT, joint.astype(float))
+    save(img, os.path.join(outdir, "apron2634.png"))
     print(f"wrote infrastructure textures to {outdir}")
 
 

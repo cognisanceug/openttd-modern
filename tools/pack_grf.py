@@ -21,6 +21,13 @@ like river banks), roads 1313-1350 and level crossings 1370-1381, all packed
 like ground tiles with the crop box of the grass sprite on the same slope.
 Track fences 1301-1308 are cropped like overlays.
 
+Signals: 1275-1290 (electric block signals) and the 240-sprite Action 5
+PRE_SIGNAL_SEMAPHORE_PBS block, indexed like DrawSingleSignal(); slots the game
+never uses get a 1x1 transparent sprite. Depots 1063-1068 and 1408-1413 carry a
+company-colour mask: masked pixels get palette index 202 in the 32bpp mask
+sheet (brightness comes from the rendered grey) and company colours in the
+8bpp fallback. Concrete 2634 is packed like ground.
+
 Foundations: the 14 leveled foundations 990-1003 and the 90-sprite Action 5
 FOUNDATIONS_SLOPES_HALFTILES block, cropped like overlays (fully empty
 variants become a 1x1 transparent sprite).
@@ -32,7 +39,8 @@ bounding box. The drawing origin sits at canvas pixel (31z, 64z).
 
 Each block gets an 8bpp fallback (DOS palette) plus 32bpp sprites at 1x, 2x, 4x.
 
-Usage: pack_grf.py <ground-render-dir> <ref/ground> <trees-render-dir> <foundations-render-dir> <fences-render-dir> <nml-dir>
+Usage: pack_grf.py <render-dir> <ref/ground> <nml-dir>
+  (render-dir holds ground/, trees/, foundations/, fences/, signals/, depots/)
 """
 
 import json
@@ -111,15 +119,25 @@ def ground_sprite(render_dir, sprite, zoom, ref):
     return color.crop(box), zoom * ref["x"], zoom * ref["y"]
 
 
-def overlay_sprite(render_dir, name, zoom):
+def overlay_sprite(render_dir, name, zoom, origin=(31, GROUND_ANCHOR_Y), cc=False):
+    """Crop a rendered overlay to its visible pixels; origin is the sprite origin at 1x canvas scale.
+
+    With cc, also returns the company-colour mask (L, 255 = recolour) cropped alike.
+    """
     im = Image.open(os.path.join(render_dir, f"z{zoom}", f"{name}_overlay.png")).convert("RGBA")
     a = im.getchannel("A").point(lambda v: v if v >= 4 else 0)
     im.putalpha(a)
     box = a.getbbox()
     if box is None:
-        return Image.new("RGBA", (1, 1), (0, 0, 0, 0)), 0, 0
-    left, top, right, bottom = box
-    return im.crop(box), left - 31 * zoom, top - GROUND_ANCHOR_Y * zoom
+        empty = Image.new("RGBA", (1, 1), (0, 0, 0, 0))
+        return (empty, 0, 0, Image.new("L", (1, 1), 0)) if cc else (empty, 0, 0)
+    left, top = box[0], box[1]
+    out = (im.crop(box), left - origin[0] * zoom, top - origin[1] * zoom)
+    if not cc:
+        return out
+    mask = Image.open(os.path.join(render_dir, f"z{zoom}", f"{name}_cc.png")).convert("RGB").convert("L")
+    mask = mask.point(lambda v: 255 if v >= 128 else 0)
+    return out + (Image.composite(mask, Image.new("L", mask.size, 0), a.point(lambda v: 255 if v >= 128 else 0)).crop(box),)
 
 
 def bank_sprite(render_dir, name, slope, zoom):
@@ -149,6 +167,9 @@ def tree_sprite(render_dir, sprite, zoom):
     return out.crop((left, top, right, bottom)), left - 31 * zoom, top - TREE_ANCHOR_Y * zoom
 
 
+COMPANY_INDEX = 202  # middle of the company-colour range 198-205
+
+
 def sheet_block(name, header, labels, sprites_by_zoom, gfx_dir):
     """Write sheets for one replace block; returns NML text.
 
@@ -159,24 +180,48 @@ def sheet_block(name, header, labels, sprites_by_zoom, gfx_dir):
     parts = []
     for zoom in ZOOMS:
         sprites = sprites_by_zoom[zoom]
-        cell = max(im.width for im, _, _ in sprites) + GAP
-        sheet = Image.new("RGBA", (cell * len(sprites), max(im.height for im, _, _ in sprites)), (0, 0, 0, 0))
+        has_mask = len(sprites[0]) == 4
+        cell = max(sp[0].width for sp in sprites) + GAP
+        size = (cell * len(sprites), max(sp[0].height for sp in sprites))
+        sheet = Image.new("RGBA", size, (0, 0, 0, 0))
+        mask_sheet = Image.new("L", size, 0)
         lines = []
-        for k, (im, xo, yo) in enumerate(sprites):
+        for k, sp in enumerate(sprites):
+            im, xo, yo = sp[:3]
             sheet.paste(im, (k * cell, 0))
+            if has_mask:
+                mask_sheet.paste(sp[3], (k * cell, 0))
             lines.append(f"    [{k * cell:5d}, 0, {im.width:3d}, {im.height:3d}, {xo:4d}, {yo:4d}]  // {labels[k]}")
         sheet.save(os.path.join(gfx_dir, f"{name}_z{zoom}.png"))
+        mask_arg = ""
+        if has_mask:
+            pal = Image.new("P", size, 0)
+            pal.putpalette(raw_palette_data[0])
+            pal.paste(COMPANY_INDEX, mask=mask_sheet)
+            pal.save(os.path.join(gfx_dir, f"{name}_z{zoom}_mask.png"))
+            mask_arg = f', "gfx/{name}_z{zoom}_mask.png"'
         if zoom == 1:
-            to_8bpp(sheet).save(os.path.join(gfx_dir, f"{name}_z1_8bpp.png"))
+            eight = to_8bpp(sheet)
+            if has_mask:
+                # Company colours in the 8bpp fallback, shaded by the rendered grey.
+                grey = sheet.convert("L").load()
+                m, e = mask_sheet.load(), eight.load()
+                for yy in range(size[1]):
+                    for xx in range(size[0]):
+                        if m[xx, yy]:
+                            e[xx, yy] = 198 + max(0, min(7, round(grey[xx, yy] / 128 * 4)))
+            eight.save(os.path.join(gfx_dir, f"{name}_z1_8bpp.png"))
             head = header.format(name=name, file=f'"gfx/{name}_z1_8bpp.png"')
             parts += [head + " {", *lines, "}", ""]
-        parts += [f'alternative_sprites({name}, {zoom_const[zoom]}, BIT_DEPTH_32BPP, "gfx/{name}_z{zoom}.png") {{',
+        parts += [f'alternative_sprites({name}, {zoom_const[zoom]}, BIT_DEPTH_32BPP, "gfx/{name}_z{zoom}.png"{mask_arg}) {{',
                   *lines, "}", ""]
     return "\n".join(parts)
 
 
 def main():
-    ground_dir, ref_dir, trees_dir, found_dir, fence_dir, nml_dir = sys.argv[1:7]
+    render_dir, ref_dir, nml_dir = sys.argv[1:4]
+    ground_dir, trees_dir, found_dir, fence_dir, signal_dir, depot_dir = (
+        os.path.join(render_dir, d) for d in ("ground", "trees", "foundations", "fences", "signals", "depots"))
     meta = json.load(open(os.path.join(ref_dir, "meta.json")))
     gfx_dir = os.path.join(nml_dir, "gfx")
     os.makedirs(gfx_dir, exist_ok=True)
@@ -230,6 +275,30 @@ def main():
                  for z in ZOOMS}
     nml.append(sheet_block("level_crossings", "replace {name}(1370, {file})", list(range(1370, 1382)),
                            crossings, gfx_dir))
+    # Signals: electric block signals in the base set, everything else in the Action 5 block.
+    sig = lambda v, t, i, c, z: overlay_sprite(signal_dir, f"sig_{v}_{t}_{i}_{c}", z, origin=(31, 40))  # noqa: E731
+    base_sig = {z: [sig(0, 0, k // 2, k % 2, z) for k in range(16)] for z in ZOOMS}
+    nml.append(sheet_block("signals_base", "replace {name}(1275, {file})", list(range(1275, 1291)), base_sig, gfx_dir))
+    slots = {}
+    for v in (0, 1):
+        for t in range(6):
+            if v == 0 and t == 0:
+                continue
+            for i in range(8):
+                for c in (0, 1):
+                    slots[t * 16 + v * 64 + i * 2 + c + (64 if t >= 4 else 0) - 16] = (v, t, i, c)
+    blank = lambda z: (Image.new("RGBA", (1, 1), (0, 0, 0, 0)), 0, 0)  # noqa: E731
+    sigs = {z: [sig(*slots[k], z) if k in slots else blank(z) for k in range(240)] for z in ZOOMS}
+    nml.append(sheet_block("signals", "replacenew {name}(PRE_SIGNAL_SEMAPHORE_PBS, {file})",
+                           [f"sig {slots.get(k, 'unused')}" for k in range(240)], sigs, gfx_dir))
+    depots = {z: [overlay_sprite(depot_dir, f"depot{n}", z, origin=(95, 80), cc=True)
+                  for n in list(range(1063, 1069))] for z in ZOOMS}
+    nml.append(sheet_block("rail_depots", "replace {name}(1063, {file})", list(range(1063, 1069)), depots, gfx_dir))
+    depots = {z: [overlay_sprite(depot_dir, f"depot{n}", z, origin=(95, 80), cc=True)
+                  for n in list(range(1408, 1414))] for z in ZOOMS}
+    nml.append(sheet_block("road_depots", "replace {name}(1408, {file})", list(range(1408, 1414)), depots, gfx_dir))
+    apron = {z: [ground_sprite(ground_dir, "apron2634", z, grass_meta(0))] for z in ZOOMS}
+    nml.append(sheet_block("concrete", "replace {name}(2634, {file})", [2634], apron, gfx_dir))
     fences = {z: [overlay_sprite(fence_dir, f"fence{n}", z) for n in range(1301, 1309)] for z in ZOOMS}
     nml.append(sheet_block("track_fences", "replace {name}(1301, {file})", list(range(1301, 1309)), fences, gfx_dir))
     for name, header, names in (
@@ -248,7 +317,7 @@ def main():
     open(os.path.join(nml_dir, "lang", "english.lng"), "w").write(
         "##grflangid 0x01\n"
         "STR_GRF_NAME :Modern Terrain\n"
-        "STR_GRF_DESC :32bpp temperate ground, water and shores, foundations, trees, rails and roads rendered in Blender. Licence: GPL v2.\n"
+        "STR_GRF_DESC :32bpp temperate ground, water and shores, foundations, trees, rails, roads, signals and depots rendered in Blender. Licence: GPL v2.\n"
     )
     nmlc = os.path.join(os.path.dirname(sys.executable), "nmlc")
     subprocess.run([nmlc, "-c", "--grf", "modern_terrain.grf", "modern_terrain.nml"], cwd=nml_dir, check=True)
