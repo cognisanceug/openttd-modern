@@ -49,6 +49,10 @@ packed like ground, parts as overlays), drive-through stops (ROAD_STOPS),
 road waypoints (ROAD_WAYPOINTS) and rail waypoints (OTTD_GUI 78-81), all with
 company-colour masks.
 
+Catenary: rail wires and pylons (CATENARY 0-35); trams: track overlays
+(TRAMWAY 4-22), tram-only track (27-45), overhead wires front 56-75 and back
+poles 84-94 with a company-colour band.
+
 Usage: pack_grf.py <render-dir> <ref/ground> <nml-dir>
   (render-dir holds ground/, trees/, foundations/, fences/, signals/, depots/, bridges/, tunnels/)
 """
@@ -249,6 +253,7 @@ def main():
         os.path.join(render_dir, d) for d in ("ground", "trees", "foundations", "fences", "signals", "depots"))
     bridge_dir, tunnel_dir = os.path.join(render_dir, "bridges"), os.path.join(render_dir, "tunnels")
     station_dir = os.path.join(render_dir, "stations")
+    catenary_dir = os.path.join(render_dir, "catenary")
     meta = json.load(open(os.path.join(ref_dir, "meta.json")))
     gfx_dir = os.path.join(nml_dir, "gfx")
     os.makedirs(gfx_dir, exist_ok=True)
@@ -352,6 +357,23 @@ def main():
         ("rail_waypoints", "replacenew {name}(OTTD_GUI, {file}, 78)", [f"wp{k}" for k in range(4)]),
     ):
         nml.append(sheet_block(name, header, parts, {z: [st_part(n, z) for n in parts] for z in ZOOMS}, gfx_dir))
+    # Rail catenary and trams.
+    cat = lambda n, z: overlay_sprite(catenary_dir, f"cat{n}", z, origin=(47, 72), cc=True)  # noqa: E731
+    nml.append(sheet_block("catenary", "replacenew {name}(CATENARY, {file}, 0)", list(range(36)),
+                           {z: [cat(f"rail_{k}", z) for k in range(36)] for z in ZOOMS}, gfx_dir))
+    road_slopes = {11: 12, 12: 6, 13: 3, 14: 9}
+    nml.append(sheet_block("tram_overlay", "replacenew {name}(TRAMWAY, {file}, 4)", list(range(4, 23)),
+                           {z: [bank_sprite(ground_dir, f"tram{4 + k}", 0, z) for k in range(19)] for z in ZOOMS},
+                           gfx_dir))
+    nml.append(sheet_block("tram_track", "replacenew {name}(TRAMWAY, {file}, 27)", list(range(27, 46)),
+                           {z: [ground_sprite(ground_dir, f"tram{27 + k}", z, grass_meta(road_slopes.get(k, 0)))
+                                for k in range(19)] for z in ZOOMS}, gfx_dir))
+    blank4 = lambda z: (Image.new("RGBA", (1, 1), (0, 0, 0, 0)), 0, 0, Image.new("L", (1, 1), 0))  # noqa: E731
+    nml.append(sheet_block("tram_wires_front", "replacenew {name}(TRAMWAY, {file}, 56)", list(range(56, 76)),
+                           {z: [blank4(z) if k == 63 else cat(f"tram_{k}", z) for k in range(56, 76)] for z in ZOOMS},
+                           gfx_dir))
+    nml.append(sheet_block("tram_wires_back", "replacenew {name}(TRAMWAY, {file}, 84)", list(range(84, 95)),
+                           {z: [cat(f"tram_{k}", z) for k in range(84, 95)] for z in ZOOMS}, gfx_dir))
     fences = {z: [overlay_sprite(fence_dir, f"fence{n}", z) for n in range(1301, 1309)] for z in ZOOMS}
     nml.append(sheet_block("track_fences", "replace {name}(1301, {file})", list(range(1301, 1309)), fences, gfx_dir))
     for name, header, names in (
