@@ -22,6 +22,8 @@ Currently covered (temperate):
 | 1069–1086 | rail station: platforms with benches and lamps, station building, roof pillars, gable roof frame and glass |
 | 2692–2723 | bus and truck bays: floors, bus shelter, stop sign, warehouse with roller doors, fences |
 | Action 5 `ROAD_STOPS`, `ROAD_WAYPOINTS`, `OTTD_GUI` 78–81 | drive-through stops, road waypoints, rail waypoints |
+| Action 5 `CATENARY` 0–35 | electrified rail: wires (flat, up, down, depot entrances) and pylons |
+| Action 5 `TRAMWAY` 4–45, 56–75, 84–94 | tram tracks on roads and on their own (grassed track), overhead wires and poles with company colour |
 | 2365–2372, 2389–2396 | rail and road tunnel portals: stone portal with round arch under a grassy mound |
 | 1301–1308 | track fences: low-poly post-and-rail, flat, diagonal and sloped |
 | 1313–1350 | roads with pavements (towns) and with grass verges: 19 shapes each incl. slopes and dead ends |
@@ -67,6 +69,7 @@ $B -b --factory-startup -P blender/render_signals.py -- render/signals
 $B -b --factory-startup -P blender/render_depots.py -- render/depots
 $B -b --factory-startup -P blender/render_tunnels.py -- render/tunnels
 $B -b --factory-startup -P blender/render_stations.py -- render/stations
+$B -b --factory-startup -P blender/render_catenary.py -- render/catenary
 $B -b --factory-startup -P blender/render_bridges.py -- render/bridges   # needs ref/bridges/usage.json
 .venv/bin/python tools/check_calibration.py render/ground ref/ground
 .venv/bin/python tools/pack_grf.py render ref/ground nml
@@ -80,7 +83,7 @@ SEED=5 tools/ingame_shot.sh modern trees_4x       # -> shots/trees_4x.png
 SEED=1 tools/ingame_shot.sh modern rocks_4x keep  # leaves the window open
 SEED=2 tools/ingame_shot.sh water coast_4x        # high sea level: coast and coast rocks
 SEED=2 tools/ingame_shot.sh town town_4x          # many towns: foundations, and a river
-SEED=1 SIZE="4800 3200" tools/infra_shot.sh infra_4x   # InfraTest builds rails, roads, crossings, signals, depots, bridges, tunnels, stations
+SEED=1 SIZE="4800 3200" tools/infra_shot.sh infra_4x   # InfraTest builds rails, roads, crossings, signals, depots, bridges, tunnels, stations, electrifies (start year 2000)
 ```
 
 ## Style

@@ -15,7 +15,7 @@ function InfraTest::Start()
 	while (GSCompany.ResolveCompanyID(GSCompany.COMPANY_FIRST) == GSCompany.COMPANY_INVALID) this.Sleep(1);
 	local mode = GSCompanyMode(GSCompany.ResolveCompanyID(GSCompany.COMPANY_FIRST));
 	GSCompany.SetLoanAmount(GSCompany.GetMaxLoanAmount());
-	GSRail.SetCurrentRailType(GSRailTypeList().Begin());
+	GSRail.SetCurrentRailType(0); // normal rail; the list starts with monorail in later years
 	GSRoad.SetCurrentRoadType(GSRoad.ROADTYPE_ROAD);
 
 	local cx = GSMap.GetMapSizeX() / 2;
@@ -98,6 +98,25 @@ function InfraTest::Start()
 	Check("bus drive-through", GSRoad.BuildDriveThroughRoadStation(T(cx - 1, cy + 2), T(cx, cy + 2), GSRoad.ROADVEHTYPE_BUS, GSStation.STATION_NEW));
 	Check("truck drive-through", GSRoad.BuildDriveThroughRoadStation(T(cx + 3, cy + 2), T(cx + 2, cy + 2), GSRoad.ROADVEHTYPE_TRUCK, GSStation.STATION_NEW));
 	Check("rail waypoint", GSRail.BuildRailWaypoint(T(cx - 3, cy)));
+
+	/* Electrify the test line and lay tram tracks on the roads plus a tram-only line with a curve. */
+	/* Rail type 1 is electrified rail in the base game. */
+	if (GSRail.IsRailTypeAvailable(1)) {
+		Check("electrify", GSRail.ConvertRailType(T(cx - 5, cy - 3), T(cx + 5, cy + 3), 1));
+	} else {
+		GSLog.Warning("electrified rail not available");
+	}
+	local tram = null;
+	foreach (rt, _ in GSRoadTypeList(GSRoad.ROADTRAMTYPES_TRAM)) { tram = rt; break; }
+	if (tram != null) {
+		GSRoad.SetCurrentRoadType(tram);
+		Check("tram on road x", GSRoad.BuildRoad(T(cx - 3, cy + 2), T(cx + 3, cy + 2)));
+		Check("tram on road y", GSRoad.BuildRoad(T(cx + 1, cy - 3), T(cx + 1, cy + 3)));
+		Check("tram line", GSRoad.BuildRoad(T(cx + 6, cy - 4), T(cx + 6, cy + 1)));
+		Check("tram curve", GSRoad.BuildRoad(T(cx + 6, cy + 1), T(cx + 9, cy + 1)));
+	} else {
+		GSLog.Warning("no tram road type");
+	}
 
 	GSLog.Info("InfraTest done");
 	while (true) this.Sleep(1000);

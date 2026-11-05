@@ -20,6 +20,8 @@ Written to <outdir>/<name>.png (RGBA; overlays are transparent off the track):
   apron2634          concrete slabs (road depot floor, airport apron)
   deck_<rail|road>_<X|Y>[_wood]  bridge deck surfaces: concrete or timber planks with track or road
   bay2692-bay2695, bay2708-bay2711  bus and truck bay floors (entrance NE, SE, SW, NW)
+  tram<4-22>         tram track overlay on roads (grooved rails), 19 road shapes (TRAMWAY 4 + offset)
+  tram<27-45>        tram-only track on a grassed bed with sleepers (TRAMWAY 27 + offset)
 
 Usage: make_infra_textures.py <render/textures> <outdir> [size]
 """
@@ -219,6 +221,88 @@ def save(img, path):
     Image.fromarray(rgba.astype(np.uint8), "RGBA").save(path)
 
 
+# --- tram tracks ---------------------------------------------------------------
+
+def tram_paths(arms):
+    """Track centre lines (as point arrays) for a road shape: straights, quarter arcs, loops."""
+    pts = lambda a, b, n=64: np.linspace(a, b, n)  # noqa: E731
+    mid = {k: np.array(v) for k, v in MID.items()}
+    corner = {frozenset(("NW", "NE")): (-0.5, 0.5), frozenset(("NE", "SE")): (0.5, 0.5),
+              frozenset(("SE", "SW")): (0.5, -0.5), frozenset(("SW", "NW")): (-0.5, -0.5)}
+    opposite = {"NE": "SW", "SW": "NE", "NW": "SE", "SE": "NW"}
+    paths = []
+    arms = list(arms)
+    done = set()
+    for a in arms:
+        if opposite[a] in arms and frozenset((a, opposite[a])) not in done:
+            paths.append(pts(mid[a], mid[opposite[a]]))
+            done.add(frozenset((a, opposite[a])))
+    for i, a in enumerate(arms):
+        for b in arms[i + 1:]:
+            key = frozenset((a, b))
+            if key in corner and not (len(arms) == 4):
+                c = np.array(corner[key])
+                a0 = np.arctan2(*(mid[a] - c)[::-1])
+                a1 = np.arctan2(*(mid[b] - c)[::-1])
+                if abs(a1 - a0) > np.pi:
+                    a1 += 2 * np.pi * (1 if a1 < a0 else -1)
+                ang = np.linspace(a0, a1, 64)
+                paths.append(np.stack([c[0] + 0.5 * np.cos(ang), c[1] + 0.5 * np.sin(ang)], axis=1))
+    if len(arms) == 1:
+        # Dead end: run to a balloon loop near the tile centre.
+        m = mid[arms[0]]
+        d = -m / np.linalg.norm(m)
+        centre = m + d * 0.62
+        paths.append(pts(m, m + d * 0.32))
+        ang = np.linspace(0, 2 * np.pi, 96)
+        paths.append(np.stack([centre[0] + 0.3 * np.cos(ang), centre[1] + 0.3 * np.sin(ang)], axis=1))
+    return paths
+
+
+def path_fields(x, y, path):
+    """Distance to a polyline and the arc length of the nearest point, on the grid."""
+    seg_len = np.hypot(*np.diff(path, axis=0).T)
+    cum = np.concatenate([[0], np.cumsum(seg_len)])
+    best = np.full(x.shape, 1e9)
+    along = np.zeros(x.shape)
+    for i in range(len(path) - 1):
+        p0, p1 = path[i], path[i + 1]
+        d = p1 - p0
+        L2 = max(d @ d, 1e-12)
+        t = np.clip(((x - p0[0]) * d[0] + (y - p0[1]) * d[1]) / L2, 0, 1)
+        dist = np.hypot(x - (p0[0] + t * d[0]), y - (p0[1] + t * d[1]))
+        better = dist < best
+        best = np.where(better, dist, best)
+        along = np.where(better, cum[i] + t * seg_len[i], along)
+    return best, along
+
+
+TRAM_GAUGE = 0.085
+GROOVE = np.array([46, 48, 54.0])
+TRAM_BED = np.array([96, 132, 72.0])
+
+
+def tram_texture(n, ground, arms, overlay, noise):
+    x, y = grid(n)
+    img = np.zeros((n, n, 4))
+    if not overlay:
+        img[..., :3] = ground
+        img[..., 3] = 1.0
+    fields = [path_fields(x, y, p) for p in tram_paths(arms)]
+    if not overlay:
+        for dist, along in fields:
+            bed = 1 - smooth(0.15, 0.18, dist)
+            blend(img, TRAM_BED * (1 + (noise[..., None] - 0.5) * 0.15), bed)
+        for dist, along in fields:
+            sleeper = (dist < 0.13) & (np.abs(np.mod(along / 0.0625, 1) - 0.5) < 0.2)
+            blend(img, SLEEPER, sleeper.astype(float))
+    for dist, along in fields:
+        for side_dist in (np.abs(dist - TRAM_GAUGE),):
+            blend(img, GROOVE, (side_dist < 0.018).astype(float))
+            blend(img, RAIL_TOP, (side_dist < 0.009).astype(float) * 0.9)
+    return img
+
+
 def main():
     tex_dir, outdir = sys.argv[1], sys.argv[2]
     n = int(sys.argv[3]) if len(sys.argv) > 3 else 1024
@@ -279,6 +363,11 @@ def main():
             save(img, os.path.join(outdir, f"deck_rail_{axis}{suffix}.png"))
             arms = ("SW", "NE") if axis == "X" else ("NW", "SE")
             save(road_texture(n, ground, arms, False, noise), os.path.join(outdir, f"deck_road_{axis}{suffix}.png"))
+    # Tram tracks: grooved rails on roads (overlay) and grassed track on their own.
+    for k, arms in enumerate(ROAD_SHAPES):
+        save(tram_texture(n, None, arms, True, noise), os.path.join(outdir, f"tram{4 + k}.png"))
+        save(tram_texture(n, grass, arms, False, noise), os.path.join(outdir, f"tram{27 + k}.png"))
+
     # Road stop bays: asphalt, kerb on the three closed sides, bay markings.
     edge_d = {"NE": 0.5 - y, "SE": 0.5 - x, "SW": y + 0.5, "NW": x + 0.5}
     opposite = {"NE": "SW", "SE": "NW", "SW": "NE", "NW": "SE"}
