@@ -53,8 +53,17 @@ Catenary: rail wires and pylons (CATENARY 0-35); trams: track overlays
 (TRAMWAY 4-22), tram-only track (27-45), overhead wires front 56-75 and back
 poles 84-94 with a company-colour band.
 
+Town houses 1420-1575 and 4404-4417 (render_houses.py): buildings are the
+rendered house with its cast shadow under it, recolourable facades carry a
+structure recolour mask; grounds are the flat tile, with house parts laid over
+it where the original draws the house in the ground sprite. The lift (1443) is
+a child sprite placed relative to the top-left corner of the office block
+sprite (1442), so its offsets are taken from that sprite's crop. Unused
+sprites in the range (1438, 1439, 1566-1569) are empty.
+
 Usage: pack_grf.py <render-dir> <ref/ground> <nml-dir>
-  (render-dir holds ground/, trees/, foundations/, fences/, signals/, depots/, bridges/, tunnels/)
+  (render-dir holds ground/, trees/, foundations/, fences/, signals/, depots/, bridges/, tunnels/,
+   stations/, catenary/, houses/)
 """
 
 import json
@@ -190,6 +199,70 @@ def tree_sprite(render_dir, sprite, zoom):
     out.putalpha(a)
     left, top, right, bottom = a.getbbox()
     return out.crop((left, top, right, bottom)), left - 31 * zoom, top - TREE_ANCHOR_Y * zoom
+
+
+def house_sprite(render_dir, sprite, zoom, cc):
+    """Building with its shadow under it, cropped; origin (47z, 136z). Returns (im, x, y, recolour mask)."""
+    d = os.path.join(render_dir, f"z{zoom}")
+    building = Image.open(os.path.join(d, f"b{sprite}_overlay.png")).convert("RGBA")
+    catcher = Image.open(os.path.join(d, f"b{sprite}_shadow.png")).convert("RGBA")
+    out = Image.new("RGBA", building.size, SHADOW_RGB + (0,))
+    out.putalpha(catcher.getchannel("A").point(lambda a: round(a * SHADOW_ALPHA)))
+    out.alpha_composite(building)
+    a = out.getchannel("A").point(lambda v: v if v >= 4 else 0)
+    out.putalpha(a)
+    box = a.getbbox()
+    mask = Image.new("L", building.size, 0)
+    if cc:
+        m = Image.open(os.path.join(d, f"b{sprite}_cc.png")).convert("RGB").convert("L").point(lambda v: 255 if v >= 128 else 0)
+        solid = building.getchannel("A").point(lambda v: 255 if v >= 128 else 0)
+        mask = Image.composite(m, mask, solid)
+    return out.crop(box), box[0] - 47 * zoom, box[1] - 136 * zoom, mask.crop(box)
+
+
+def house_ground_sprite(render_dir, sprite, zoom):
+    """Flat tile cut by its mask, with house parts standing in the ground laid over it; origin (47z, 56z)."""
+    d = os.path.join(render_dir, f"z{zoom}")
+    tile = Image.open(os.path.join(d, f"g{sprite}_color.png")).convert("RGBA")
+    mask = Image.open(os.path.join(d, f"g{sprite}_mask.png")).convert("RGBA").getchannel("A")
+    tile.putalpha(mask.point(lambda a: 255 if a >= 128 else 0))
+    props = os.path.join(d, f"g{sprite}_overlay.png")
+    if os.path.exists(props):
+        tile.alpha_composite(Image.open(props).convert("RGBA"))
+    box = tile.getchannel("A").getbbox()
+    return tile.crop(box), box[0] - 47 * zoom, box[1] - 56 * zoom, Image.new("L", (box[2] - box[0], box[3] - box[1]), 0)
+
+
+def house_lift_sprite(render_dir, zoom, parent):
+    """The lift cabin at the ground floor, offset from the parent sprite's top-left as AddChildSpriteScreen does."""
+    im, x, y = overlay_sprite(render_dir, "l1443", zoom, origin=(47, 136))
+    return im, x - parent[1] - 14 * zoom, y - parent[2] - 60 * zoom, Image.new("L", im.size, 0)
+
+
+def house_blocks(house_dir, table, gfx_dir):
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "blender"))
+    import house_specs as hs
+    data = json.load(open(table))
+    buildings, grounds = hs.building_jobs(data), hs.ground_jobs(data)
+    empty = (Image.new("RGBA", (1, 1), (0, 0, 0, 0)), 0, 0, Image.new("L", (1, 1), 0))
+    out = []
+    for name, first, last in (("houses", 1420, 1575), ("houses_late", 4404, 4417)):
+        sprites = {}
+        for z in ZOOMS:
+            row = []
+            for n in range(first, last + 1):
+                if n in buildings:
+                    row.append(house_sprite(house_dir, n, z, buildings[n]["rc"]))
+                elif n in grounds:
+                    row.append(house_ground_sprite(house_dir, n, z))
+                else:
+                    row.append(empty)
+            if first <= hs.LIFT_SPRITE <= last:
+                row[hs.LIFT_SPRITE - first] = house_lift_sprite(house_dir, z, row[1442 - first])
+            sprites[z] = row
+        out.append(sheet_block(name, f"replace {{name}}({first}, {{file}})", list(range(first, last + 1)), sprites,
+                               gfx_dir, mask_index=STRUCT_INDEX))
+    return out
 
 
 COMPANY_INDEX = 202  # middle of the company-colour range 198-205
@@ -382,6 +455,8 @@ def main():
     ):
         found = {z: [overlay_sprite(found_dir, n, z) for n in names] for z in ZOOMS}
         nml.append(sheet_block(name, header, names, found, gfx_dir))
+    nml += house_blocks(os.path.join(render_dir, "houses"), os.path.join(ref_dir, "..", "houses", "houses.json"),
+                        gfx_dir)
     for name, first, rendered in TREE_BLOCKS:
         trees = {z: [tree_sprite(trees_dir, rendered + g, z) for g in range(7)] for z in ZOOMS}
         nml.append(sheet_block(name, f"replace {{name}}({first}, {{file}})",
@@ -392,7 +467,7 @@ def main():
     open(os.path.join(nml_dir, "lang", "english.lng"), "w").write(
         "##grflangid 0x01\n"
         "STR_GRF_NAME :Modern Terrain\n"
-        "STR_GRF_DESC :32bpp temperate ground, water and shores, foundations, trees and transport infrastructure rendered in Blender. Licence: GPL v2.\n"
+        "STR_GRF_DESC :32bpp temperate ground, water and shores, foundations, trees, transport infrastructure and town houses rendered in Blender. Licence: GPL v2.\n"
     )
     nmlc = os.path.join(os.path.dirname(sys.executable), "nmlc")
     subprocess.run([nmlc, "-c", "--grf", "modern_terrain.grf", "modern_terrain.nml"], cwd=nml_dir, check=True)

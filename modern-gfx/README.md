@@ -28,6 +28,7 @@ Currently covered (temperate):
 | 1301–1308 | track fences: low-poly post-and-rail, flat, diagonal and sloped |
 | 1313–1350 | roads with pavements (towns) and with grass verges: 19 shapes each incl. slopes and dead ends |
 | 1370–1381 | level crossings, open and barred |
+| 1420–1575, 4404–4417 | all 31 temperate town houses (52 variants incl. the 2×2 stadiums and shopping mall and the 1×2 hotel), with their grounds (lawn with hedge and path, paving, construction site, pitches) and construction stages (foundations, walls with scaffolding); recolourable facades keep their `PALETTE_TO_STRUCT_*` variants via a structure recolour mask; the office block lift (1443) |
 | 1576–1715 | all 20 temperate tree bases × 7 growth stages (17 species; 0x6AD repeats the spruce like OpenGFX) |
 
 Every sprite ships as 8bpp fallback plus 32bpp at 1x, 2x and 4x.
@@ -57,10 +58,12 @@ B=/Applications/Blender.app/Contents/MacOS/Blender
 tar -xf ~/Documents/OpenTTD/baseset/opengfx-8.0.tar -C ref
 .venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfx1_base.grf 3924 4060 ref/ground
 .venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfx1_base.grf 1576 1715 ref/trees
+.venv/bin/python tools/house_table.py ../src/table ref/houses/houses.json
 
 # textures, renders, checks, GRF
 .venv/bin/python tools/make_ground_textures.py render/textures
 .venv/bin/python tools/make_infra_textures.py render/textures render/textures/infra   # needs numpy
+.venv/bin/python tools/make_house_textures.py render/textures ref/houses/houses.json render/textures/houses
 $B -b --factory-startup -P blender/render_ground.py -- render/ground
 $B -b --factory-startup -P blender/render_trees.py -- render/trees
 $B -b --factory-startup -P blender/render_foundations.py -- render/foundations
@@ -71,6 +74,7 @@ $B -b --factory-startup -P blender/render_tunnels.py -- render/tunnels
 $B -b --factory-startup -P blender/render_stations.py -- render/stations
 $B -b --factory-startup -P blender/render_catenary.py -- render/catenary
 $B -b --factory-startup -P blender/render_bridges.py -- render/bridges   # needs ref/bridges/usage.json
+$B -b --factory-startup -P blender/render_houses.py -- render/houses     # --part k/n splits it over processes
 .venv/bin/python tools/check_calibration.py render/ground ref/ground
 .venv/bin/python tools/pack_grf.py render ref/ground nml
 ```
@@ -82,7 +86,7 @@ your own OpenTTD config (needs the game built in `../build`):
 SEED=5 tools/ingame_shot.sh modern trees_4x       # -> shots/trees_4x.png
 SEED=1 tools/ingame_shot.sh modern rocks_4x keep  # leaves the window open
 SEED=2 tools/ingame_shot.sh water coast_4x        # high sea level: coast and coast rocks
-SEED=2 tools/ingame_shot.sh town town_4x          # many towns: foundations, and a river
+SEED=2 tools/ingame_shot.sh town town_4x          # many towns (start year 2000): houses, foundations, and a river
 SEED=1 SIZE="4800 3200" tools/infra_shot.sh infra_4x   # InfraTest builds rails, roads, crossings, signals, depots, bridges, tunnels, stations, electrifies (start year 2000)
 ```
 
@@ -105,3 +109,15 @@ uses each sprite (head, or back/front/pillar of a section of a bridge family).
 Steel parts carry palette index 75 in a mask, inside the 70-79 range that the
 game's PALETTE_TO_STRUCT_* recolours remap, so shared sprites still appear
 oxide, yellow, red, brown, white or concrete-grey per bridge type.
+
+Town houses come from the original draw table (tools/house_table.py reads
+table/town_land.h); blender/house_specs.py maps every sprite to a model and a
+construction stage: the finished house, its foundations, or its walls cut at
+45 % / 75 % height with scaffolding. Models are built in OpenTTD units from a
+small kit (boxes, prisms, gable and hipped roofs, window grids) in
+blender/render_houses.py; multi-tile houses are modelled once and cut along
+the tile edges. Facades that the game recolours per tile hash carry the same
+structure recolour mask as the bridges (index 75 is a brick red, so the plain
+variant keeps a brick facade). Grounds are tile-space textures
+(tools/make_house_textures.py) laid on the flat tile; buildings cast a soft
+shadow onto their own tile.
