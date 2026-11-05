@@ -11,6 +11,7 @@ Currently covered (temperate; trees in all climates):
 | 3924–4060 | ground: bare soil, 1/3 and 2/3 grass, grass, rough land (+4 flat variants with their own texture), two rocky sets (own texture and boulders each; the GRF switches the second set on) |
 | 4126–4296 | farm fields: 9 stages (ploughed, sown, young, green, turning, ripening, golden, stubble, stubble with round hay bales), 19 slopes each |
 | 4493–4568 | snow (sub-arctic) and desert (sub-tropical): 4 densities over the meadow, 19 slopes each; replaced only in their climate (the rest of those climates is still temperate or OpenGFX) |
+| 3924–4060 in toyland, `COAST_TILES_DIAGONAL` in toyland | toyland ground: lilac-grey putty for bare soil, felt-green meadow with pastel confetti for the grass stages, rough land with candy pompoms, rocky land with raspberry gravel, toy blocks and marbles; shores with the toyland meadow. Replaced only in toyland, which loads its own ground into the same sprite numbers |
 | 4090–4125 | farm field fences: hedge, hedge with gate, post-and-rail fence, yellow and red flowering hedge, dry stone wall; flat and both slope directions on the SW/SE edge shapes |
 | 4061      | open water (sea, lakes, canals) |
 | Action 5 `COAST_TILES_DIAGONAL` | all 18 shore shapes: water, foam line, beach, meadow by height |
@@ -87,6 +88,7 @@ tar -xf ~/Documents/OpenTTD/baseset/opengfx-8.0.tar -C ref
 $B -b --factory-startup -P blender/render_ground.py -- render/ground
 $B -b --factory-startup -P blender/render_ground.py -- render/snow --kinds snow1,snow2,snow3,snow4
 $B -b --factory-startup -P blender/render_ground.py -- render/desert --kinds desert1,desert2,desert3,desert4
+$B -b --factory-startup -P blender/render_ground.py -- render/toyland --kinds toybare,toygrass13,toygrass23,toygrass,toyrough,toyrocky1,toyrocky2,toyshore
 $B -b --factory-startup -P blender/render_trees.py -- render/trees
 $B -b --factory-startup -P blender/render_foundations.py -- render/foundations
 $B -b --factory-startup -P blender/render_fences.py -- render/fences
@@ -127,9 +129,10 @@ SEED=1 SIZE="4800 3200" CFG=infra_future tools/infra_shot.sh guideway_4x   # 209
 SEED=1 SIZE="4800 3200" tools/infra_shot.sh infra_4x   # InfraTest builds rails, roads, one-way roads, crossings, signals, depots, bridges, tunnels, stations, electrifies (start year 2000)
 SEED=5 tools/ingame_shot.sh arctic arctic_4x      # sub-arctic: snow ground, trees with and without snow
 SEED=5 tools/ingame_shot.sh tropic tropic_4x      # sub-tropical: desert ground, palms, rainforest, cacti
-SEED=5 tools/ingame_shot.sh toyland toyland_4x    # toyland trees
+SEED=5 tools/ingame_shot.sh toyland toyland_4x    # toyland trees and ground
 LOAD="$PWD/test-home/terrain_test.sav" ZOOM=2 tools/ingame_shot.sh modern terrain_2x   # 2x sprites
 SEED=5 tools/terrain_shot.sh terrain_4x   # TerrainTest funds farms and clears a row of land every 8 days: fields, fences, bare soil -> grass (~3 min)
+CFG=terrain_toyland SEED=5 tools/terrain_shot.sh toyland_terrain_4x   # the same in toyland (no farms): bare putty -> grass
 tools/industry_shot.sh industry_4x   # IndustryTest builds HQ, statue, owned land and every industry (two waves: complete and under construction)
 tools/airport_shot.sh airport_4x     # AirportTest builds every airport type, docks in four directions, buoys and an oil rig
 ```
@@ -177,7 +180,8 @@ simulates the cycle for a patch of sea. Coast tiles never carry snow or
 desert: DrawShoreTile() uses the one COAST block in every climate, map
 generation keeps desert at least 5 tiles from water, and land sloping down to
 the sea is below the snow line. The meadow on our shores matches the set's
-grass, which is used in every climate, so no climate switch is needed.
+grass, which is used in every climate except toyland; toyland gets its own
+shores, rendered with the toyland meadow (`toyshore`).
 Scatter objects (tufts, boulders) are real geometry placed on the slope
 surface and cut to the tile outline by the footprint mask. Rails and roads
 are drawn as tile-space textures (tools/make_infra_textures.py: ballast,
@@ -282,8 +286,7 @@ the toyland leaf pole use arching leaf blades with a raised midrib; leaning
 trunks lean to the screen's left as in OpenGFX. The burst toyland balloon
 (last stage of 0x7A9) is an empty sprite.
 Tree canvases are 64z × 112z px with the drawing origin at (31z, 80z), tall
-enough for the 76 px rainforest tree and palm. Toyland ground is not covered yet: there the set's temperate ground
-replaces OpenGFX's.
+enough for the 76 px rainforest tree and palm.
 
 ## Interface
 
