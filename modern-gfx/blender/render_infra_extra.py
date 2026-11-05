@@ -29,6 +29,11 @@ def jobs():
     """(name, slope, overlay) for every sprite."""
     out = [(f"tramdeck{107 + k}", s, True) for k, s in enumerate(DECK_SLOPES)]
     out += [(f"oneway{k}", ONEWAY_SLOPES[k // 6][k % 6 // 3], True) for k in range(18)]
+    # Monorail and maglev in the rail layout: 6 single pieces without ground, then 26 with ground.
+    for kind, first in (("mono", 1087), ("mglv", 1169)):
+        out += [(f"{kind}{first + k}", 0, True) for k in range(6)]
+        out += [(f"{kind}{first + 6 + k}", rg.RAIL_SLOPES.get(k, 0), False) for k in range(26)]
+    out += [(f"cross{s}", 0, False) for s in range(1382, 1406)]
     return out
 
 

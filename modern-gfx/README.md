@@ -15,6 +15,9 @@ Currently covered (temperate):
 | Action 5 `OVERLAY_ROCKS` 95–113 | rocks on water and coast |
 | 990–1003, Action 5 `FOUNDATIONS_SLOPES_HALFTILES` | all foundations: leveled, inclined, halftile; stone walls, coping on back edges |
 | 1005–1036 | rails: straight, short pieces, cross, junction grounds (ballast beds of the tracks a junction can hold, grass in the corners) and single overlays, 12 slopes, double pieces |
+| 1087–1118, 1169–1200, 1382–1405 | monorail (one steel rail on a concrete beam with ties) and maglev (wide concrete guideway, two guide rails, reaction rail) in the rail layout, and their level crossings |
+| 1145–1168, 1227–1250 | monorail and maglev depots and stations: the rail renders (they hold no track) |
+| 2373–2388, 2581–2592, 4324–4403 | monorail and maglev tunnel portals and the bridge sprites only they use (decks with their guideway) |
 | 1063–1068, 1408–1413 | rail and road depots (shed with gable roof, garage with roller door); company-colour eaves band via recolour mask |
 | 1275–1290, Action 5 `PRE_SIGNAL_SEMAPHORE_PBS` | all signals: light and semaphore; block, entry, exit, combo, path, one-way path; 8 directions, red/green |
 | 2634      | concrete (road depot floor, airport apron) |
@@ -87,6 +90,7 @@ SEED=5 tools/ingame_shot.sh modern trees_4x       # -> shots/trees_4x.png
 SEED=1 tools/ingame_shot.sh modern rocks_4x keep  # leaves the window open
 SEED=2 tools/ingame_shot.sh water coast_4x        # high sea level: coast and coast rocks
 SEED=2 tools/ingame_shot.sh town town_4x          # many towns: foundations, and a river
+SEED=1 SIZE="4800 3200" CFG=infra_future tools/infra_shot.sh guideway_4x   # 2090: also monorail and maglev
 SEED=1 SIZE="4800 3200" tools/infra_shot.sh infra_4x   # InfraTest builds rails, roads, one-way roads, crossings, signals, depots, bridges, tunnels, stations, electrifies (start year 2000)
 ```
 

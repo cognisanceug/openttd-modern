@@ -56,6 +56,10 @@ tunnel wires 80-83, bridge wires 95-106 and tram-only bridge decks 107-112 (tram
 
 One-way road markers: Action 5 ONE_WAY_ROAD, drawn at the tile centre (oneway_block).
 
+Monorail and maglev (guideway_blocks): tracks 1087-1118 / 1169-1200, crossings 1382-1405,
+depots and stations 1145-1168 / 1227-1250 from the rail renders, tunnels 2373-2388 and
+the bridge sprites only they use (2581-2592, 4324-4403).
+
 Usage: pack_grf.py <render-dir> <ref/ground> <nml-dir>
   (render-dir holds ground/, trees/, foundations/, fences/, signals/, depots/, bridges/, tunnels/)
 """
@@ -297,6 +301,47 @@ def oneway_block(render_dir, gfx_dir):
                        {z: [marker(k, z) for k in range(18)] for z in ZOOMS}, gfx_dir)
 
 
+def guideway_blocks(render_dir, grass_meta, gfx_dir):
+    """Monorail and maglev: tracks, crossings, depots, stations, tunnels and bridges; returns NML text.
+
+    Tracks 1087-1118 and 1169-1200 follow the rail layout 1005-1036 (single pieces without
+    ground first), crossings 1382-1405 that of 1370-1381. Depots and stations have no track
+    of their own, so 1145-1168 and 1227-1250 (rail sprite + 82 resp. 164) reuse the rail
+    renders. Tunnels 2373-2388 and the bridge sprites only these two use (2581-2592,
+    4324-4403) have their own renders.
+    """
+    ground_dir = os.path.join(render_dir, "ground")
+    out = []
+    for kind, first in (("mono", 1087), ("mglv", 1169)):
+        tracks = {z: [bank_sprite(ground_dir, f"{kind}{first + k}", 0, z) for k in range(6)]
+                  + [ground_sprite(ground_dir, f"{kind}{first + k}", z, grass_meta(RAIL_SLOPES.get(k - 6, 0)))
+                     for k in range(6, 32)] for z in ZOOMS}
+        out.append(sheet_block(f"{kind}_tracks", f"replace {{name}}({first}, {{file}})",
+                               list(range(first, first + 32)), tracks, gfx_dir))
+    out.append(sheet_block("guideway_crossings", "replace {name}(1382, {file})", list(range(1382, 1406)),
+                           {z: [ground_sprite(ground_dir, f"cross{n}", z, grass_meta(0)) for n in range(1382, 1406)]
+                            for z in ZOOMS}, gfx_dir))
+    depot = lambda n, z: overlay_sprite(os.path.join(render_dir, "depots"), f"depot{n}", z, origin=(95, 80), cc=True)  # noqa: E731
+    station = lambda n, z: overlay_sprite(os.path.join(render_dir, "stations"), f"st{n}", z, origin=(63, 72), cc=True)  # noqa: E731
+    for kind, offset in (("mono", 82), ("mglv", 164)):
+        out.append(sheet_block(f"{kind}_depots_stations", f"replace {{name}}({1063 + offset}, {{file}})",
+                               [f"{n} as {n + offset}" for n in range(1063, 1087)],
+                               {z: [depot(n, z) if n < 1069 else station(n, z) for n in range(1063, 1087)]
+                                for z in ZOOMS}, gfx_dir))
+    tunnel_dir = os.path.join(render_dir, "tunnels")
+    out.append(sheet_block("guideway_tunnels", "replace {name}(2373, {file})", list(range(2373, 2389)),
+                           {z: [tunnel_ground_sprite(tunnel_dir, n, z) if (n - 2373) % 2 == 0
+                                else overlay_sprite(tunnel_dir, f"tun{n}", z, origin=(47, 56)) for n in range(2373, 2389)]
+                            for z in ZOOMS}, gfx_dir))
+    bridge_dir = os.path.join(render_dir, "bridges")
+    for name, first, count in (("guideway_bridges_a", 2581, 12), ("guideway_bridges_b", 4324, 80)):
+        out.append(sheet_block(name, f"replace {{name}}({first}, {{file}})", list(range(first, first + count)),
+                               {z: [overlay_sprite(bridge_dir, f"br{n}", z, origin=(47, 72), cc=True)
+                                    for n in range(first, first + count)] for z in ZOOMS},
+                               gfx_dir, mask_index=STRUCT_INDEX))
+    return "\n".join(out)
+
+
 def main():
     render_dir, ref_dir, nml_dir = sys.argv[1:4]
     ground_dir, trees_dir, found_dir, fence_dir, signal_dir, depot_dir = (
@@ -426,6 +471,7 @@ def main():
                            {z: [cat(f"tram_{k}", z) for k in range(84, 95)] for z in ZOOMS}, gfx_dir))
     nml.append(tram_extra_blocks(render_dir, gfx_dir))
     nml.append(oneway_block(render_dir, gfx_dir))
+    nml.append(guideway_blocks(render_dir, grass_meta, gfx_dir))
     fences = {z: [overlay_sprite(fence_dir, f"fence{n}", z) for n in range(1301, 1309)] for z in ZOOMS}
     nml.append(sheet_block("track_fences", "replace {name}(1301, {file})", list(range(1301, 1309)), fences, gfx_dir))
     for name, header, names in (
