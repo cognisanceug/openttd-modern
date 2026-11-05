@@ -97,14 +97,22 @@ def blend(img, colour, alpha):
 
 
 def segment_coords(x, y, track):
-    """Along-track t (0 at first end) and signed offset s for a track piece; also its length."""
+    """Along-track t (0 at first end) and signed offset s for a track piece; also its length.
+
+    On the short corner pieces s is measured along the tile edge they cross (the perpendicular
+    offset times sqrt 2), so rails, sleepers and ballast meet a straight piece or another corner
+    piece at the same points of the shared edge.
+    """
     a, b = (np.array(MID[k]) for k in TRACKS[track])
     d = b - a
     length = float(np.hypot(*d))
     u = d / length
     n = np.array([-u[1], u[0]])
     px, py = x - a[0], y - a[1]
-    return px * u[0] + py * u[1], px * n[0] + py * n[1], length
+    s = px * n[0] + py * n[1]
+    if length < 0.9:
+        s = s * np.sqrt(2)
+    return px * u[0] + py * u[1], s, length
 
 
 def draw_ballast(img, x, y, track, noise):
