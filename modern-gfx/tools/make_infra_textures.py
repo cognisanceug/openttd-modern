@@ -62,6 +62,7 @@ RAIL_HALF = 0.013
 RAIL_EDGE = 0.022
 ROAD_HALF = 0.23
 KERB_W = 0.022
+LOOP_R = 0.12  # tram turning loop: outer rail edge 0.12 + 0.085 + 0.018 stays within ROAD_HALF
 
 
 def grid(n):
@@ -249,13 +250,13 @@ def tram_paths(arms):
                 ang = np.linspace(a0, a1, 64)
                 paths.append(np.stack([c[0] + 0.5 * np.cos(ang), c[1] + 0.5 * np.sin(ang)], axis=1))
     if len(arms) == 1:
-        # Dead end: run to a balloon loop near the tile centre.
+        # Dead end: run to a balloon loop around the tile centre, inside the road stub's round end.
         m = mid[arms[0]]
         d = -m / np.linalg.norm(m)
-        centre = m + d * 0.62
-        paths.append(pts(m, m + d * 0.32))
+        centre = m + d * 0.5
+        paths.append(pts(m, m + d * (0.5 - LOOP_R)))
         ang = np.linspace(0, 2 * np.pi, 96)
-        paths.append(np.stack([centre[0] + 0.3 * np.cos(ang), centre[1] + 0.3 * np.sin(ang)], axis=1))
+        paths.append(np.stack([centre[0] + LOOP_R * np.cos(ang), centre[1] + LOOP_R * np.sin(ang)], axis=1))
     return paths
 
 
