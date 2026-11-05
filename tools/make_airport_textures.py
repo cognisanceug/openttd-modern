@@ -21,7 +21,8 @@ Written to <outdir>/<name>.png:
   x_tarmac, x_rwy1-4, x_rwyend   Action 5 AIRPORTS 0-5: tarmac, runway along y and its end
   x_grass_right, x_grass_left    Action 5 AIRPORTS 13/14: grass halves over the apron (RGBA)
 
-Usage: make_airport_textures.py <render/textures> <outdir> [size]
+Usage: make_airport_textures.py <render/textures> <outdir> [size] [--grass <name>]
+  --grass toy_grass  draw over <name>.png and write only the textures that show grass
 """
 
 import os
@@ -29,6 +30,9 @@ import sys
 
 import numpy as np
 from PIL import Image
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import make_infra_textures as mi  # noqa: E402
 
 ASPHALT = np.array([86, 92, 100.0])
 TARMAC = np.array([112, 116, 120.0])
@@ -186,11 +190,12 @@ def save(img, path):
 
 
 def main():
-    tex_dir, outdir = sys.argv[1], sys.argv[2]
-    n = int(sys.argv[3]) if len(sys.argv) > 3 else 1024
+    argv, grass_name = mi.grass_args(sys.argv)
+    tex_dir, outdir = argv[1], argv[2]
+    n = int(argv[3]) if len(argv) > 3 else 1024
     os.makedirs(outdir, exist_ok=True)
     apron = load(os.path.join(tex_dir, "infra", "apron2634.png"), n)
-    grass = load(os.path.join(tex_dir, "grass.png"), n)
+    grass = load(os.path.join(tex_dir, grass_name + ".png"), n)
     nz = noise(n, 3)
     asphalt = ASPHALT * (0.96 + 0.08 * nz[..., None])
     tarmac = TARMAC * (0.96 + 0.08 * noise(n, 4)[..., None])
@@ -225,7 +230,10 @@ def main():
     out["x_rwyend"] = runway_texture(n, asphalt, "y", end=True)
     out["x_grass_right"] = grass_half(n, grass, "right")
     out["x_grass_left"] = grass_half(n, grass, "left")
+    on_grass = ("taxi", "afgrass", "afrwy", "afterm", "x_grass")
     for name, img in out.items():
+        if grass_name != "grass" and not name.startswith(on_grass):
+            continue
         save(img, os.path.join(outdir, f"{name}.png"))
         print("wrote", name, flush=True)
 

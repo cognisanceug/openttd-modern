@@ -9,9 +9,27 @@ The multiplication happens in sRGB space as in the study (lum ** 2.2 in linear).
 """
 
 import math
+import os
 
 import bpy
 from mathutils import Vector
+
+TEXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "render", "textures")
+# Grass switch: GFX_GRASS=toy renders with the toyland meadow (toy_grass.png); the textures
+# drawn over the grass (rails, roads, banks, ...) then come from render/textures/toyland,
+# where the texture tools write them with --grass toy_grass.
+GRASS = os.environ.get("GFX_GRASS", "")
+
+
+def texture(name):
+    """Path of render/textures/<name>.png ('/' for subfolders), following the grass switch."""
+    if GRASS == "toy":
+        if name == "grass":
+            name = "toy_grass"
+        path = os.path.join(TEXTURES, "toyland", name + ".png")
+        if os.path.exists(path):
+            return path
+    return os.path.join(TEXTURES, name + ".png")
 
 # Map study LIGHT = (-0.2, 0.45, 0.87) in its map coordinates; its map x is
 # Blender +X and its map y is Blender -Y.

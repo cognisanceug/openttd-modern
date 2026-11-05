@@ -28,7 +28,10 @@ Snow (arctic) and desert (tropic) densities 4493-4568 come from render/snow and
 render/desert and are replaced only in their climate. Toyland loads its own
 ground into the same sprites 3924-4060 (table/landscape_sprite.h), so in toyland
 an if-block replaces them again from render/toyland, together with the shores,
-whose meadow band is the toyland grass.
+whose meadow band is the toyland grass. Everything else that shows grass and is drawn
+in toyland too has a toyland variant (render/toyland, rendered with GFX_GRASS=toy), packed
+in a second toyland if-block at the end so it wins over the temperate replacements:
+see toyland_grass_blocks().
 
 Signals: 1275-1290 (electric block signals) and the 240-sprite Action 5
 PRE_SIGNAL_SEMAPHORE_PBS block, indexed like DrawSingleSignal(); slots the game
@@ -500,6 +503,72 @@ def guideway_blocks(render_dir, grass_meta, gfx_dir):
     return "\n".join(out)
 
 
+def runs(numbers):
+    """Consecutive runs [(first, count)] of sorted sprite numbers."""
+    out = []
+    for n in numbers:
+        if out and n == out[-1][0] + out[-1][1]:
+            out[-1] = (out[-1][0], out[-1][1] + 1)
+        else:
+            out.append((n, 1))
+    return out
+
+
+def toyland_grass_blocks(render_dir, grass_meta, gfx_dir):
+    """Toyland variants of the sprites with grass in them, from render/toyland; returns NML text.
+
+    Only sprites the game draws in toyland and that show grass: rails, roads with verges,
+    the level crossings without pavement (1370-1377 hold the toyland ones, the snow slot
+    is never used), monorail and maglev, tunnels (verges and the mound), river banks and
+    canal dikes (as canal-feature items again) and the airport grass pieces. Town roads, paved
+    crossings, the gravel airfield yard (2667) and the company HQ grounds (paved) show no grass;
+    the toyland town houses stand on their own lawn (4675, drawn from toy_grass) and need no variant.
+    """
+    import pack_airport
+    import pack_industry
+    toy_dir = os.path.join(render_dir, "toyland")
+    out = []
+
+    def tiles(name, numbers, sprite):
+        for first, count in runs(numbers):
+            label = f"{name}_{first}"
+            out.append(sheet_block(label, f"replace {{name}}({first}, {{file}})", list(range(first, first + count)),
+                                   {z: [sprite(n, z) for n in range(first, first + count)] for z in ZOOMS}, gfx_dir,
+                                   mask_index=COMPANY_INDEX))
+
+    tiles("toy_rails", range(1011, 1037),
+          lambda n, z: ground_sprite(toy_dir, f"rail{n}", z, grass_meta(RAIL_SLOPES.get(n - 1011, 0))))
+    tiles("toy_roads", range(1332, 1351),
+          lambda n, z: ground_sprite(toy_dir, f"road{n}", z, grass_meta(ROAD_SLOPES.get(n - 1332, 0))))
+    tiles("toy_crossings", range(1370, 1374), lambda n, z: ground_sprite(toy_dir, f"cross{n}", z, grass_meta(0)))
+    for kind, first in (("mono", 1087), ("mglv", 1169)):
+        tiles(f"toy_{kind}", range(first + 6, first + 32),
+              lambda n, z, kind=kind, first=first: ground_sprite(toy_dir, f"{kind}{n}", z,
+                                                                 grass_meta(RAIL_SLOPES.get(n - first - 6, 0))))
+    tiles("toy_guideway_crossings", [*range(1382, 1386), *range(1394, 1398)],
+          lambda n, z: ground_sprite(toy_dir, f"cross{n}", z, grass_meta(0)))
+    tunnel_dir = os.path.join(toy_dir, "tunnels")
+    tiles("toy_tunnels", range(2365, 2397),
+          lambda n, z: tunnel_ground_sprite(tunnel_dir, n, z) if (n - 2365) % 2 == 0
+          else overlay_sprite(tunnel_dir, f"tun{n}", z, origin=(47, 56)))
+    air_dir = os.path.join(toy_dir, "airports")
+    tiles("toy_airport", [*range(2636, 2645), 2665, 2666, *range(2669, 2676)],
+          lambda n, z: pack_industry.ground_sprite(air_dir, f"g{n}", z))
+    out.append(sheet_block("toy_airport_grass", "replacenew {name}(AIRPORTS, {file}, 13)", ["gx13", "gx14"],
+                           {z: [pack_airport.overlay_ground_sprite(air_dir, n, z) for n in ("gx13", "gx14")]
+                            for z in ZOOMS}, gfx_dir))
+
+    # Spritesets may not stand in a conditional block, only the items using them.
+    banks = [(f"bank{v * 12 + k}", sl) for v, sl in enumerate(BANK_SLOPES) for k in range(12)]
+    sets = [sheet_block("toy_river_banks", "spriteset({name}, {file})", [n for n, _ in banks],
+                        {z: [bank_sprite(toy_dir, n, sl, z) for n, sl in banks] for z in ZOOMS}, gfx_dir),
+            sheet_block("toy_canal_dikes", "spriteset({name}, {file})", [f"dike{k}" for k in range(12)],
+                        {z: [bank_sprite(toy_dir, f"dike{k}", 0, z) for k in range(12)] for z in ZOOMS}, gfx_dir)]
+    out.append("item(FEAT_CANALS, toy_river_bank_item, WF_RIVERBANKS) {\n    graphics { toy_river_banks; }\n}\n")
+    out.append("item(FEAT_CANALS, toy_canal_dike_item, WF_DIKES) {\n    graphics { toy_canal_dikes; }\n}\n")
+    return "\n".join(sets) + "if (climate == CLIMATE_TOYLAND) {\n" + "\n".join(out) + "}\n"
+
+
 def main():
     render_dir, ref_dir, nml_dir = sys.argv[1:4]
     ground_dir, trees_dir, found_dir, fence_dir, signal_dir, depot_dir = (
@@ -690,6 +759,7 @@ def main():
     # Airports, docks, buoys and the oil rig, see tools/pack_airport.py.
     import pack_airport
     nml += pack_airport.airport_blocks(render_dir, gfx_dir, sheet_block)
+    nml.append(toyland_grass_blocks(render_dir, grass_meta, gfx_dir))
     open(os.path.join(nml_dir, "modern_terrain.nml"), "w").write("\n".join(nml))
 
     os.makedirs(os.path.join(nml_dir, "lang"), exist_ok=True)

@@ -18,7 +18,7 @@ Kinds (blender/house_specs.py decides which ground gets which):
   *_snow        sub-arctic grounds above the snow line: the same under snow, paths swept
   desert_*      sub-tropical: sand garden with a lawn and a tiled path behind a white
                 wall, sandy yard with dry grass, sandstone paving
-  toy_lawn      toyland: bright lawn with confetti-coloured flowers
+  toy_lawn      toyland: the toyland meadow (toy_grass.png) with confetti-coloured flowers
   toy_paving    toyland: pastel chequered tiles
 
 Written to <outdir>/g<sprite>.png (RGB); grounds drawn inside a building sprite
@@ -219,8 +219,8 @@ def desert_paving(n, u, v, rng, sand):
     return img
 
 
-def toy_lawn(n, u, v, rng, grass):
-    img = grass * np.array([0.92, 1.06, 0.9])
+def toy_lawn(n, u, v, rng, toy_grass):
+    img = toy_grass.copy()
     dots = rng.random((n, n))
     for k, colour in enumerate(TOY_COLOURS):
         blend(img, colour, ((dots > 0.996 - 0.0012 * k) & (dots <= 0.9972 - 0.0012 * k)).astype(float))
@@ -297,6 +297,7 @@ def main():
     os.makedirs(outdir, exist_ok=True)
     data = json.load(open(table))
     grass = load_tiled(os.path.join(tex_dir, "grass.png"), n)
+    toy_grass = load_tiled(os.path.join(tex_dir, "toy_grass.png"), n)
     bare = load_tiled(os.path.join(tex_dir, "bare.png"), n)
     snow = load_tiled(os.path.join(tex_dir, "snow4.png"), n)
     sand = load_tiled(os.path.join(tex_dir, "desert4.png"), n)
@@ -331,7 +332,7 @@ def main():
         elif kind == "desert_paving":
             img = desert_paving(n, u, v, rng, sand)
         elif kind == "toy_lawn":
-            img = toy_lawn(n, u, v, rng, grass)
+            img = toy_lawn(n, u, v, rng, toy_grass)
         elif kind == "toy_paving":
             img = toy_paving(n, u, v, rng)
         elif kind == "construction":
