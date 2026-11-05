@@ -4,7 +4,7 @@
 #   modern  OpenGFX plus nml/modern_terrain.grf      base  OpenGFX only
 #   water   like modern, with a high sea level so coasts and rivers show up
 #   town    like modern, with many towns: houses and roads on slopes show foundations
-#   arctic / tropic  like modern in the sub-arctic / sub-tropical climate (snow, desert)
+#   arctic, tropic, toyland   like modern in that climate (snow, desert, the climate's trees)
 #   terrain like infra, runs the TerrainTest game script (see tools/terrain_shot.sh)
 #   infra   like modern, runs the InfraTest game script and autosaves every minute
 #           (see tools/infra_shot.sh)
