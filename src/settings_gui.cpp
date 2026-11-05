@@ -1025,8 +1025,7 @@ struct GameOptionsWindow : Window {
 				this->SetWidgetLoweredState(WID_GO_GUI_MODERN_BUTTON, _settings_client.gui.modern_ui);
 				this->SetDirty();
 
-				SetupWidgetDimensions();
-				ReInitAllWindows(true);
+				ReloadModernWindowStyle();
 				break;
 			}
 

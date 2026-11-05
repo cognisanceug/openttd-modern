@@ -199,6 +199,9 @@ GlyphID FreeTypeFontCache::MapCharToGlyph(char32_t key, bool allow_fallback)
 {
 	assert(IsPrintable(key));
 
+	/* Fonts without OpenTTD's icons may have other glyphs at their private use code points; use the sprite font for them. */
+	if (this->sprite_icons && key >= SCC_SPRITE_START && key <= SCC_SPRITE_END) return allow_fallback ? this->parent->MapCharToGlyph(key) : 0;
+
 	FT_UInt glyph = FT_Get_Char_Index(this->face, key);
 
 	if (glyph == 0 && allow_fallback && key >= SCC_SPRITE_START && key <= SCC_SPRITE_END) {

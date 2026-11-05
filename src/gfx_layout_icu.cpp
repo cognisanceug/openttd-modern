@@ -198,7 +198,7 @@ void ICURun::Shape(UChar *buff, size_t buff_length)
 	for (unsigned int i = 0; i < glyph_count; i++) {
 		int x_advance;
 
-		if (buff[glyph_info[i].cluster] >= SCC_SPRITE_START && buff[glyph_info[i].cluster] <= SCC_SPRITE_END && glyph_info[i].codepoint == 0) {
+		if (buff[glyph_info[i].cluster] >= SCC_SPRITE_START && buff[glyph_info[i].cluster] <= SCC_SPRITE_END && (glyph_info[i].codepoint == 0 || fc.MapCharToGlyph(buff[glyph_info[i].cluster], false) == 0)) {
 			auto glyph = fc.MapCharToGlyph(buff[glyph_info[i].cluster]);
 			x_advance = fc.GetGlyphWidth(glyph);
 			this->glyphs.push_back(glyph);

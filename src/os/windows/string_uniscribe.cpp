@@ -204,8 +204,8 @@ static bool UniscribeShapeRun(const UniscribeParagraphLayoutFactory::CharType *b
 				for (int i = 0; i < range.len; i++) {
 					if (buff[range.pos + i] >= SCC_SPRITE_START && buff[range.pos + i] <= SCC_SPRITE_END) {
 						auto pos = range.char_to_glyph[i];
-						if (range.ft_glyphs[pos] == 0) { // Font doesn't have our special glyph, so remap.
-							FontCache &fc = range.font.GetFontCache();
+						FontCache &fc = range.font.GetFontCache();
+						if (range.ft_glyphs[pos] == 0 || fc.MapCharToGlyph(buff[range.pos + i], false) == 0) { // Font doesn't have our special glyph, so remap.
 							range.ft_glyphs[pos] = fc.MapCharToGlyph(buff[range.pos + i]);
 							range.offsets[pos].dv = (fc.GetHeight() - ScaleSpriteTrad(FontCache::GetDefaultFontHeight(fc.GetSize()))) / 2; // Align sprite font to centre
 							range.advances[pos] = fc.GetGlyphWidth(range.ft_glyphs[pos]);

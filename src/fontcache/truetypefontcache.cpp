@@ -12,6 +12,7 @@
 #include "../fontcache.h"
 #include "../core/bitmath_func.hpp"
 #include "../gfx_layout.h"
+#include "../settings_type.h"
 #include "truetypefontcache.h"
 
 #include "../safeguards.h"
@@ -59,7 +60,8 @@ TrueTypeFontCache::GlyphEntry &TrueTypeFontCache::SetGlyphPtr(GlyphID key, Glyph
 
 bool TrueTypeFontCache::GetDrawGlyphShadow()
 {
-	return this->fs == FontSize::Normal && GetFontAAState();
+	/* The modern window style is flat, without the hard text shadow. */
+	return this->fs == FontSize::Normal && GetFontAAState() && !_settings_client.gui.modern_ui;
 }
 
 uint TrueTypeFontCache::GetGlyphWidth(GlyphID key)

@@ -10,6 +10,7 @@
 #include "stdafx.h"
 #include "company_func.h"
 #include "gfx_func.h"
+#include "fontcache.h"
 #include "console_func.h"
 #include "console_gui.h"
 #include "viewport_func.h"
@@ -3471,6 +3472,20 @@ void ReInitAllWindows(bool zoom_changed)
 	/* Make sure essential parts of all windows are visible */
 	RelocateAllWindows(_screen.width, _screen.height);
 	MarkWholeScreenDirty();
+}
+
+/**
+ * Apply a change of the modern window style: load the default fonts of the
+ * style, then resize the widgets, the viewport signs and all windows.
+ */
+void ReloadModernWindowStyle()
+{
+	FontCache::LoadFontCaches(FONTSIZES_ALL);
+	FontCache::ClearFontCaches(FONTSIZES_ALL);
+	CheckForMissingGlyphs();
+	LoadStringWidthTable();
+	UpdateAllVirtCoords();
+	ReInitAllWindows(true);
 }
 
 /**

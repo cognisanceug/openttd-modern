@@ -101,6 +101,26 @@ static TileIndex GetReferenceTile(const NewsReference &reference)
 	return std::visit(visitor{}, reference);
 }
 
+/**
+ * Get the town a news-reference is located in, shown in the header of news items in the modern window style.
+ * @param reference The reference.
+ * @return The town of the referenced object, or nullptr if none.
+ */
+static const Town *GetReferenceTown(const NewsReference &reference)
+{
+	struct visitor {
+		const Town *operator()(const std::monostate &) { return nullptr; }
+		const Town *operator()(const TileIndex &t) { return ClosestTownFromTile(t, UINT_MAX); }
+		const Town *operator()(const VehicleID v) { return ClosestTownFromTile(Vehicle::Get(v)->tile, UINT_MAX); }
+		const Town *operator()(const StationID s) { return Station::Get(s)->town; }
+		const Town *operator()(const IndustryID i) { return Industry::Get(i)->town; }
+		const Town *operator()(const TownID t) { return Town::Get(t); }
+		const Town *operator()(const EngineID) { return nullptr; }
+	};
+
+	return std::visit(visitor{}, reference);
+}
+
 /** Normal news items. */
 static constexpr std::initializer_list<NWidgetPart> _nested_normal_news_widgets = {
 	NWidget(WWT_PANEL, Colours::White, WID_N_PANEL),
@@ -303,6 +323,148 @@ static WindowDesc _small_news_desc(
 	_nested_small_news_widgets
 );
 
+/*
+ * News items in the modern window style are cards: a flat header bar with the close box,
+ * the date and the town (#WID_N_CAPTION), and the headline in a sans-serif font below.
+ */
+
+/** Normal news items in the modern window style. */
+static constexpr std::initializer_list<NWidgetPart> _nested_modern_normal_news_widgets = {
+	NWidget(WWT_PANEL, Colours::White, WID_N_PANEL),
+		NWidget(NWID_VERTICAL),
+			NWidget(NWID_HORIZONTAL),
+				NWidget(WWT_CLOSEBOX, Colours::Grey, WID_N_CLOSEBOX),
+				NWidget(WWT_EMPTY, Colours::Invalid, WID_N_CAPTION), SetFill(1, 0),
+			EndContainer(),
+			NWidget(WWT_EMPTY, Colours::Invalid, WID_N_MESSAGE),
+					SetMinimalTextLines(7, 0, FontSize::Large),
+					SetMinimalSize(400, 0),
+					SetPadding(WidgetDimensions::unscaled.hsep_indent, WidgetDimensions::unscaled.vsep_wide),
+					SetTextStyle(TextColour::Black, FontSize::Large),
+		EndContainer(),
+	EndContainer(),
+};
+
+/** Window definition for the normal news window in the modern window style. */
+static WindowDesc _modern_normal_news_desc(
+	WindowPosition::Manual, {}, 0, 0,
+	WindowClass::News, WindowClass::None,
+	{},
+	_nested_modern_normal_news_widgets
+);
+
+/** New vehicles news items in the modern window style. */
+static constexpr std::initializer_list<NWidgetPart> _nested_modern_vehicle_news_widgets = {
+	NWidget(WWT_PANEL, Colours::White, WID_N_PANEL),
+		NWidget(NWID_VERTICAL),
+			NWidget(NWID_HORIZONTAL),
+				NWidget(WWT_CLOSEBOX, Colours::Grey, WID_N_CLOSEBOX),
+				NWidget(WWT_EMPTY, Colours::Invalid, WID_N_CAPTION), SetFill(1, 0),
+			EndContainer(),
+			NWidget(WWT_LABEL, Colours::Invalid, WID_N_VEH_TITLE),
+					SetFill(1, 1),
+					SetMinimalTextLines(2, 0, FontSize::Large),
+					SetMinimalSize(400, 0),
+					SetPadding(WidgetDimensions::unscaled.hsep_indent, WidgetDimensions::unscaled.vsep_wide),
+					SetStringTip(STR_EMPTY),
+					SetTextStyle(TextColour::Black, FontSize::Large),
+			NWidget(WWT_PANEL, Colours::Grey, WID_N_VEH_BKGND), SetPadding(0, WidgetDimensions::unscaled.hsep_indent, WidgetDimensions::unscaled.hsep_indent, WidgetDimensions::unscaled.hsep_indent),
+				NWidget(NWID_VERTICAL),
+					NWidget(WWT_EMPTY, Colours::Invalid, WID_N_VEH_NAME),
+							SetMinimalTextLines(1, 0, FontSize::Large),
+							SetMinimalSize(350, 0),
+							SetPadding(WidgetDimensions::unscaled.hsep_indent, WidgetDimensions::unscaled.vsep_wide),
+							SetFill(1, 0),
+					NWidget(WWT_EMPTY, Colours::Invalid, WID_N_VEH_SPR),
+							SetMinimalSize(350, 32),
+							SetFill(1, 0),
+					NWidget(WWT_EMPTY, Colours::Invalid, WID_N_VEH_INFO),
+							SetMinimalTextLines(3, 0, FontSize::Normal),
+							SetMinimalSize(350, 0),
+							SetPadding(WidgetDimensions::unscaled.hsep_indent, WidgetDimensions::unscaled.vsep_wide),
+							SetFill(1, 0),
+				EndContainer(),
+			EndContainer(),
+		EndContainer(),
+	EndContainer(),
+};
+
+/** Window definition for the vehicle news window in the modern window style. */
+static WindowDesc _modern_vehicle_news_desc(
+	WindowPosition::Manual, {}, 0, 0,
+	WindowClass::News, WindowClass::None,
+	{},
+	_nested_modern_vehicle_news_widgets
+);
+
+/** Company news items in the modern window style. */
+static constexpr std::initializer_list<NWidgetPart> _nested_modern_company_news_widgets = {
+	NWidget(WWT_PANEL, Colours::White, WID_N_PANEL),
+		NWidget(NWID_VERTICAL),
+			NWidget(NWID_HORIZONTAL),
+				NWidget(WWT_CLOSEBOX, Colours::Grey, WID_N_CLOSEBOX),
+				NWidget(WWT_EMPTY, Colours::Invalid, WID_N_CAPTION), SetFill(1, 0),
+			EndContainer(),
+			NWidget(WWT_LABEL, Colours::Invalid, WID_N_TITLE),
+					SetFill(1, 1),
+					SetMinimalTextLines(1, 0, FontSize::Large),
+					SetMinimalSize(400, 0),
+					SetPadding(WidgetDimensions::unscaled.vsep_wide, WidgetDimensions::unscaled.hsep_indent, WidgetDimensions::unscaled.vsep_normal, WidgetDimensions::unscaled.hsep_indent),
+					SetTextStyle(TextColour::Black, FontSize::Large),
+			NWidget(NWID_HORIZONTAL), SetPadding(0, WidgetDimensions::unscaled.hsep_indent, WidgetDimensions::unscaled.hsep_indent, WidgetDimensions::unscaled.hsep_indent),
+				NWidget(NWID_VERTICAL), SetPIP(0, WidgetDimensions::unscaled.vsep_normal, 0),
+					NWidget(WWT_EMPTY, Colours::Invalid, WID_N_MGR_FACE),
+							SetFill(0, 0),
+							SetMinimalSize(93, 119),
+					NWidget(WWT_EMPTY, Colours::Invalid, WID_N_MGR_NAME),
+							SetFill(0, 1),
+							SetMinimalTextLines(2, 0),
+				EndContainer(),
+				NWidget(WWT_EMPTY, Colours::Invalid, WID_N_COMPANY_MSG),
+						SetFill(1, 1),
+						SetPadding(WidgetDimensions::unscaled.hsep_indent, WidgetDimensions::unscaled.vsep_wide),
+						SetMinimalSize(300, 0),
+						SetTextStyle(TextColour::Black, FontSize::Large),
+			EndContainer(),
+		EndContainer(),
+	EndContainer(),
+};
+
+/** Window definition for the company news window in the modern window style. */
+static WindowDesc _modern_company_news_desc(
+	WindowPosition::Manual, {}, 0, 0,
+	WindowClass::News, WindowClass::None,
+	{},
+	_nested_modern_company_news_widgets
+);
+
+/** Thin news items in the modern window style. */
+static constexpr std::initializer_list<NWidgetPart> _nested_modern_thin_news_widgets = {
+	NWidget(WWT_PANEL, Colours::White, WID_N_PANEL),
+		NWidget(NWID_VERTICAL),
+			NWidget(NWID_HORIZONTAL),
+				NWidget(WWT_CLOSEBOX, Colours::Grey, WID_N_CLOSEBOX),
+				NWidget(WWT_EMPTY, Colours::Invalid, WID_N_CAPTION), SetFill(1, 0),
+			EndContainer(),
+			NWidget(WWT_EMPTY, Colours::Invalid, WID_N_MESSAGE),
+					SetMinimalTextLines(2, 0, FontSize::Large),
+					SetMinimalSize(400, 0),
+					SetPadding(WidgetDimensions::unscaled.hsep_indent, WidgetDimensions::unscaled.vsep_wide),
+					SetTextStyle(TextColour::Black, FontSize::Large),
+			NWidget(NWID_VIEWPORT, Colours::Invalid, WID_N_VIEWPORT), SetMinimalSize(426, 70),
+					SetPadding(0, WidgetDimensions::unscaled.hsep_indent, WidgetDimensions::unscaled.hsep_indent, WidgetDimensions::unscaled.hsep_indent),
+		EndContainer(),
+	EndContainer(),
+};
+
+/** Window definition for the thin news window in the modern window style. */
+static WindowDesc _modern_thin_news_desc(
+	WindowPosition::Manual, {}, 0, 0,
+	WindowClass::News, WindowClass::None,
+	{},
+	_nested_modern_thin_news_widgets
+);
+
 /**
  * Window layouts for news items.
  */
@@ -314,9 +476,24 @@ static WindowDesc *_news_window_layout[] = {
 	&_company_news_desc, // NewsStyle::Company
 };
 
+/**
+ * Window layouts for news items in the modern window style.
+ */
+static WindowDesc *_modern_news_window_layout[] = {
+	&_modern_thin_news_desc,    // NewsStyle::Thin
+	&_small_news_desc,          // NewsStyle::Small
+	&_modern_normal_news_desc,  // NewsStyle::Normal
+	&_modern_vehicle_news_desc, // NewsStyle::Vehicle
+	&_modern_company_news_desc, // NewsStyle::Company
+};
+
 static WindowDesc &GetNewsWindowLayout(NewsStyle style)
 {
 	uint layout = to_underlying(style);
+	if (_settings_client.gui.modern_ui) {
+		assert(layout < lengthof(_modern_news_window_layout));
+		return *_modern_news_window_layout[layout];
+	}
 	assert(layout < lengthof(_news_window_layout));
 	return *_news_window_layout[layout];
 }
@@ -373,6 +550,14 @@ struct NewsWindow : Window {
 
 		this->CreateNestedTree();
 
+		if (_settings_client.gui.modern_ui && ni->style == NewsStyle::Small) {
+			/* Small news in the slate of the modern windows, matching the cards of the other news items. */
+			for (WidgetID widget : {WID_N_CLOSEBOX, WID_N_SHOW_GROUP, WID_N_HEADLINE, WID_N_INSET}) {
+				NWidgetCore *nwid = this->GetWidget<NWidgetCore>(widget);
+				if (nwid != nullptr) nwid->colour = Colours::Grey;
+			}
+		}
+
 		bool has_vehicle_id = std::holds_alternative<VehicleID>(ni->ref1);
 		NWidgetStacked *nwid_sel = this->GetWidget<NWidgetStacked>(WID_N_SHOW_GROUP_SEL);
 		if (nwid_sel != nullptr) nwid_sel->SetDisplayedPlane(has_vehicle_id ? 0 : SZSP_NONE);
@@ -409,9 +594,9 @@ struct NewsWindow : Window {
 				nvp->InitializeViewport(this, GetReferenceTile(ni->ref1), ScaleZoomGUI(ZoomLevel::News));
 			}
 			if (this->ni->flags.Test(NewsFlag::NoTransparency)) nvp->disp_flags.Set(NWidgetDisplayFlag::NoTransparency);
-			if (!this->ni->flags.Test(NewsFlag::InColour)) {
+			if (!this->IsInColour()) {
 				nvp->disp_flags.Set(NWidgetDisplayFlag::ShadeGrey);
-			} else if (this->ni->flags.Test(NewsFlag::Shaded)) {
+			} else if (this->ni->flags.Test(NewsFlag::Shaded) && !_settings_client.gui.modern_ui) {
 				nvp->disp_flags.Set(NWidgetDisplayFlag::ShadeDimmed);
 			}
 		}
@@ -419,8 +604,39 @@ struct NewsWindow : Window {
 		PositionNewsMessage(this);
 	}
 
+	/**
+	 * Test whether the news item is shown in colour.
+	 * The modern window style always shows news in colour; the grey newspaper look belongs to the classic style.
+	 * @return true iff the news item is shown in colour.
+	 */
+	bool IsInColour() const
+	{
+		return _settings_client.gui.modern_ui || this->ni->flags.Test(NewsFlag::InColour);
+	}
+
+	/**
+	 * Get the text of the caption bar.
+	 * @return "News Message" for small news, the date and town of the news item for the cards of the modern window style.
+	 */
+	std::string GetCaptionString() const
+	{
+		if (this->ni->style == NewsStyle::Small) return GetString(STR_NEWS_MESSAGE_CAPTION);
+
+		const Town *t = GetReferenceTown(this->ni->ref1);
+		if (t == nullptr) t = GetReferenceTown(this->ni->ref2);
+		if (t == nullptr) return GetString(STR_JUST_DATE_LONG, this->ni->date);
+		return GetString(STR_NEWS_DATE_AND_TOWN, this->ni->date, t->index);
+	}
+
 	void DrawNewsBorder(const Rect &r) const
 	{
+		if (_settings_client.gui.modern_ui) {
+			/* A light card with a flat outline. */
+			GfxFillRect(r, GetWindowColour(Colours::Grey, Shade::Dark));
+			GfxFillRect(r.Shrink(WidgetDimensions::scaled.bevel), GetWindowColour(Colours::Grey, Shade::Lighterest));
+			return;
+		}
+
 		Rect ir = r.Shrink(WidgetDimensions::scaled.bevel);
 		GfxFillRect(ir, PC_WHITE);
 
@@ -445,8 +661,9 @@ struct NewsWindow : Window {
 			case WID_N_CAPTION: {
 				/* Caption is not a real caption (so that the window cannot be moved)
 				 * thus it doesn't get the default sizing of a caption. */
-				Dimension d2 = GetStringBoundingBox(STR_NEWS_MESSAGE_CAPTION);
+				Dimension d2 = GetStringBoundingBox(this->GetCaptionString());
 				d2.height += WidgetDimensions::scaled.captiontext.Vertical();
+				d2.width += WidgetDimensions::scaled.captiontext.Horizontal();
 				size = maxdim(size, d2);
 				return;
 			}
@@ -513,7 +730,11 @@ struct NewsWindow : Window {
 	{
 		switch (widget) {
 			case WID_N_CAPTION:
-				DrawCaption(r, Colours::LightBlue, this->owner, TextColour::FromString, GetString(STR_NEWS_MESSAGE_CAPTION), {AlignmentH::Centre, AlignmentV::Middle}, FontSize::Normal);
+				if (this->ni->style == NewsStyle::Small) {
+					DrawCaption(r, _settings_client.gui.modern_ui ? Colours::Grey : Colours::LightBlue, this->owner, TextColour::FromString, this->GetCaptionString(), {AlignmentH::Centre, AlignmentV::Middle}, FontSize::Normal);
+				} else {
+					DrawCaption(r, Colours::Grey, INVALID_OWNER, TextColour::White, this->GetCaptionString(), {AlignmentH::Start, AlignmentV::Middle}, FontSize::Normal);
+				}
 				break;
 
 			case WID_N_PANEL:
@@ -530,7 +751,7 @@ struct NewsWindow : Window {
 			case WID_N_MGR_FACE: {
 				const CompanyNewsInformation *cni = static_cast<const CompanyNewsInformation*>(this->ni->data.get());
 				DrawCompanyManagerFace(cni->face, cni->colour, r);
-				GfxFillRect(r, PALETTE_NEWSPAPER, FillRectMode::Recolour);
+				if (!_settings_client.gui.modern_ui) GfxFillRect(r, PALETTE_NEWSPAPER, FillRectMode::Recolour);
 				break;
 			}
 			case WID_N_MGR_NAME: {
@@ -540,7 +761,12 @@ struct NewsWindow : Window {
 			}
 
 			case WID_N_VEH_BKGND:
-				GfxFillRect(r, PC_GREY);
+				if (_settings_client.gui.modern_ui) {
+					GfxFillRect(r, GetWindowColour(Colours::Grey, Shade::Light));
+					GfxFillRect(r.Shrink(WidgetDimensions::scaled.bevel), GetWindowColour(Colours::Grey, Shade::Lightest));
+				} else {
+					GfxFillRect(r, PC_GREY);
+				}
 				break;
 
 			case WID_N_VEH_NAME:
@@ -552,7 +778,7 @@ struct NewsWindow : Window {
 				assert(std::holds_alternative<EngineID>(ni->ref1));
 				EngineID engine = std::get<EngineID>(this->ni->ref1);
 				DrawVehicleEngine(r.left, r.right, CentreBounds(r.left, r.right, 0), CentreBounds(r.top, r.bottom, 0), engine, GetEnginePalette(engine, _local_company), EngineImageType::Preview);
-				GfxFillRect(r, PALETTE_NEWSPAPER, FillRectMode::Recolour);
+				if (!_settings_client.gui.modern_ui) GfxFillRect(r, PALETTE_NEWSPAPER, FillRectMode::Recolour);
 				break;
 			}
 			case WID_N_VEH_INFO: {
@@ -573,13 +799,6 @@ struct NewsWindow : Window {
 				_forced_news = std::end(_news);
 				break;
 
-			case WID_N_CAPTION:
-				if (std::holds_alternative<VehicleID>(ni->ref1)) {
-					const Vehicle *v = Vehicle::Get(std::get<VehicleID>(this->ni->ref1));
-					ShowVehicleViewWindow(v);
-				}
-				break;
-
 			case WID_N_VIEWPORT:
 				break; // Ignore clicks
 
@@ -589,6 +808,17 @@ struct NewsWindow : Window {
 					ShowCompanyGroupForVehicle(v);
 				}
 				break;
+
+			case WID_N_CAPTION:
+				if (std::holds_alternative<VehicleID>(ni->ref1)) {
+					const Vehicle *v = Vehicle::Get(std::get<VehicleID>(this->ni->ref1));
+					ShowVehicleViewWindow(v);
+					break;
+				}
+				if (this->ni->style == NewsStyle::Small) break;
+				/* The caption bar of the modern news cards scrolls to the location like the rest of the card. */
+				[[fallthrough]];
+
 			default:
 				if (std::holds_alternative<VehicleID>(ni->ref1)) {
 					const Vehicle *v = Vehicle::Get(std::get<VehicleID>(this->ni->ref1))->GetMovingFront();

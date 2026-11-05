@@ -233,10 +233,12 @@ CoreTextParagraphLayout::CoreTextVisualRun::CoreTextVisualRun(CTRunRef run, cons
 	auto gl = std::make_unique<CGGlyph[]>(this->glyphs.size());
 	CTRunGetGlyphs(run, CFRangeMake(0, 0), gl.get());
 	for (size_t i = 0; i < this->glyphs.size(); i++) {
-		if (buff[this->glyph_to_char[i]] >= SCC_SPRITE_START && buff[this->glyph_to_char[i]] <= SCC_SPRITE_END && (gl[i] == 0 || gl[i] == 3)) {
-			/* A glyph of 0 indicates not found, while apparently 3 is what char 0xFFFC maps to. */
-			FontCache &fc = font.GetFontCache();
-			this->glyphs[i] = fc.MapCharToGlyph(buff[this->glyph_to_char[i]]);
+		char32_t c = buff[this->glyph_to_char[i]];
+		FontCache &fc = font.GetFontCache();
+		if (c >= SCC_SPRITE_START && c <= SCC_SPRITE_END && (gl[i] == 0 || gl[i] == 3 || fc.MapCharToGlyph(c, false) == 0)) {
+			/* A glyph of 0 indicates not found, while apparently 3 is what char 0xFFFC maps to in most fonts.
+			 * Fonts with a glyph of their own for 0xFFFC are caught by asking the font cache again. */
+			this->glyphs[i] = fc.MapCharToGlyph(c);
 			this->positions.emplace_back(pts[i].x, pts[i].x + advs[i].width - 1, (fc.GetHeight() - ScaleSpriteTrad(FontCache::GetDefaultFontHeight(fc.GetSize()))) / 2); // Align sprite font to centre
 		} else {
 			this->glyphs[i] = gl[i];
