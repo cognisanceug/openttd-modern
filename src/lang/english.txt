@@ -1096,6 +1096,8 @@ STR_GAME_OPTIONS_GUI_SCALE_AUTO_TOOLTIP                         :Turn on to dete
 
 STR_GAME_OPTIONS_GUI_SCALE_BEVELS                               :Scale bevels
 STR_GAME_OPTIONS_GUI_SCALE_BEVELS_TOOLTIP                       :Turn on to scale bevels by interface size
+STR_GAME_OPTIONS_GUI_MODERN                                     :Modern window style
+STR_GAME_OPTIONS_GUI_MODERN_TOOLTIP                             :Turn on to draw windows flat with thin outlines and softer colours, turn off for the classic bevelled look
 
 STR_GAME_OPTIONS_GUI_FONT_SPRITE                                :Use traditional sprite font
 STR_GAME_OPTIONS_GUI_FONT_SPRITE_TOOLTIP                        :Turn on if you prefer to use the traditional fixed-size sprite font

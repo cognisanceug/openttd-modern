@@ -310,6 +310,7 @@ struct GUISettings {
 	uint8_t newgrf_default_palette; ///< default palette to use for NewGRFs without action 14 palette information
 
 	bool scale_bevels; ///< bevels are scaled with GUI scale.
+	bool modern_ui; ///< draw windows in the flat modern style instead of the classic bevels.
 
 	/**
 	 * Returns true when the user has sufficient privileges to edit newgrfs on a running game

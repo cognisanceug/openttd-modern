@@ -651,6 +651,9 @@ struct GameOptionsWindow : Window {
 			case WID_GO_GUI_SCALE_BEVEL_TEXT:
 				return GetToggleString(STR_GAME_OPTIONS_GUI_SCALE_BEVELS, WID_GO_GUI_SCALE_BEVEL_BUTTON);
 
+			case WID_GO_GUI_MODERN_TEXT:
+				return GetToggleString(STR_GAME_OPTIONS_GUI_MODERN, WID_GO_GUI_MODERN_BUTTON);
+
 			case WID_GO_GUI_FONT_SPRITE_TEXT:
 				return GetToggleString(STR_GAME_OPTIONS_GUI_FONT_SPRITE, WID_GO_GUI_FONT_SPRITE);
 
@@ -1015,6 +1018,17 @@ struct GameOptionsWindow : Window {
 				this->SetWidgetDisabledState(WID_GO_REFRESH_RATE_DROPDOWN, _video_vsync);
 				this->SetWidgetDirty(WID_GO_REFRESH_RATE_DROPDOWN);
 				break;
+
+			case WID_GO_GUI_MODERN_BUTTON: {
+				_settings_client.gui.modern_ui = !_settings_client.gui.modern_ui;
+
+				this->SetWidgetLoweredState(WID_GO_GUI_MODERN_BUTTON, _settings_client.gui.modern_ui);
+				this->SetDirty();
+
+				SetupWidgetDimensions();
+				ReInitAllWindows(true);
+				break;
+			}
 
 			case WID_GO_GUI_SCALE_BEVEL_BUTTON: {
 				_settings_client.gui.scale_bevels = !_settings_client.gui.scale_bevels;
@@ -1548,6 +1562,7 @@ struct GameOptionsWindow : Window {
 
 		this->SetWidgetLoweredState(WID_GO_GUI_SCALE_AUTO, _gui_scale_cfg == -1);
 		this->SetWidgetLoweredState(WID_GO_GUI_SCALE_BEVEL_BUTTON, _settings_client.gui.scale_bevels);
+		this->SetWidgetLoweredState(WID_GO_GUI_MODERN_BUTTON, _settings_client.gui.modern_ui);
 #ifdef HAS_TRUETYPE_FONT
 		this->SetWidgetLoweredState(WID_GO_GUI_FONT_SPRITE, _fcsettings.prefer_sprite);
 		this->SetWidgetLoweredState(WID_GO_GUI_FONT_AA, _fcsettings.global_aa);
@@ -1674,6 +1689,10 @@ static constexpr std::initializer_list<NWidgetPart> _nested_game_options_widgets
 							NWidget(NWID_HORIZONTAL), SetPIP(0, WidgetDimensions::unscaled.hsep_wide, 0),
 								NWidget(WWT_BOOLBTN, GAME_OPTIONS_BACKGROUND, WID_GO_GUI_SCALE_BEVEL_BUTTON), SetAlternateColourTip(GAME_OPTIONS_BUTTON, STR_GAME_OPTIONS_GUI_SCALE_BEVELS_TOOLTIP),
 								NWidget(WWT_TEXT, Colours::Invalid, WID_GO_GUI_SCALE_BEVEL_TEXT), SetFill(1, 0), SetResize(1, 0), SetTextStyle(GAME_OPTIONS_LABEL),
+							EndContainer(),
+							NWidget(NWID_HORIZONTAL), SetPIP(0, WidgetDimensions::unscaled.hsep_wide, 0),
+								NWidget(WWT_BOOLBTN, GAME_OPTIONS_BACKGROUND, WID_GO_GUI_MODERN_BUTTON), SetAlternateColourTip(GAME_OPTIONS_BUTTON, STR_GAME_OPTIONS_GUI_MODERN_TOOLTIP),
+								NWidget(WWT_TEXT, Colours::Invalid, WID_GO_GUI_MODERN_TEXT), SetFill(1, 0), SetResize(1, 0), SetTextStyle(GAME_OPTIONS_LABEL),
 							EndContainer(),
 #ifdef HAS_TRUETYPE_FONT
 							NWidget(NWID_HORIZONTAL), SetPIP(0, WidgetDimensions::unscaled.hsep_wide, 0),

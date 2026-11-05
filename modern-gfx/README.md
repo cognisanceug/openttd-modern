@@ -282,3 +282,37 @@ trunks lean to the screen's left as in OpenGFX. The burst toyland balloon
 Tree canvases are 64z × 112z px with the drawing origin at (31z, 80z), tall
 enough for the 76 px rainforest tree and palm. Toyland ground is not covered yet: there the set's temperate ground
 replaces OpenGFX's.
+
+## Interface
+
+The fork draws windows in a flat modern style (Game Options › Interface,
+"Modern window style", on by default; off gives the classic bevels): even
+1 px outlines instead of bevels, flat title bars, and the grey, brown, dark
+green, orange, mauve and yellow window colours mapped to slate, sand, sage,
+steel blue, lavender and ochre ramps of the palette (`GetWindowColour()` in `src/widget.cpp`). A TrueType
+font completes the look, e.g. in `openttd.cfg` under `[misc]`:
+`small_font = AvenirNext-Medium`, `medium_font = AvenirNext-Medium`,
+`large_font = AvenirNext-DemiBold`, `prefer_sprite_font = false`.
+
+`nml/modern_gui.grf` is a separate NewGRF for interface graphics; it holds the
+title screen logo, set by `tools/make_logo.py`, and the 36 main toolbar icons
+plus the minimap buttons, flat symbols in the colours of the set drawn by
+`tools/make_icons.py`. In the modern style the toolbar's red separators are
+dark slate. The title game tries
+`baseset/opntitle_modern.dat` first, a town scene that needs Modern Terrain
+and Modern Interface enabled for new games; without them the default
+`opntitle.dat` is shown.
+
+```sh
+.venv/bin/python tools/make_logo.py render/logo
+.venv/bin/python tools/make_icons.py render/icons
+.venv/bin/python tools/pack_gui_grf.py render nml           # -> nml/modern_gui.grf
+SEED=3 tools/title_save.sh title                           # -> shots/title.sav, copy to ../media/baseset/opntitle_modern.dat
+tools/gui_shot.sh classic game game_classic                # rail toolbar, town and finance windows
+TITLE=shots/title.sav tools/gui_shot.sh modern title title_modern
+.venv/bin/python tools/gui_compare.py shots/game_classic.png shots/game_modern.png shots/cmp_game.png
+```
+
+The shots use two console commands of the fork: `show_window <name>` opens a
+window from a script, and `schedule in-5-seconds <script>` runs a script after
+a few seconds of real time, also on the title screen.

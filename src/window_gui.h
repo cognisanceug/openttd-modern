@@ -16,6 +16,7 @@
 #include "company_type.h"
 #include "tile_type.h"
 #include "widget_type.h"
+#include "palette_func.h"
 
 /**
  * Flags to describe the look of the frame
@@ -124,6 +125,7 @@ inline constexpr WidgetDimensions WidgetDimensions::unscaled = {
 };
 
 /* widget.cpp */
+PixelColour GetWindowColour(Colours colour, Shade shade);
 void DrawFrameRect(int left, int top, int right, int bottom, Colours colour, FrameFlags flags);
 
 inline void DrawFrameRect(const Rect &r, Colours colour, FrameFlags flags)

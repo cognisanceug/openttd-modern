@@ -1087,6 +1087,8 @@ STR_GAME_OPTIONS_GUI_SCALE_AUTO_TOOLTIP                         :Dieses Kästche
 
 STR_GAME_OPTIONS_GUI_SCALE_BEVELS                               :Schrägen skalieren
 STR_GAME_OPTIONS_GUI_SCALE_BEVELS_TOOLTIP                       :Dieses Kästchen ankreuzen, um Schrägen nach der Oberflächengröße zu skalieren
+STR_GAME_OPTIONS_GUI_MODERN                                     :Moderner Fensterstil
+STR_GAME_OPTIONS_GUI_MODERN_TOOLTIP                             :Dieses Kästchen ankreuzen, um Fenster flach mit dünnen Konturen und weicheren Farben zu zeichnen; ohne Haken bleibt der klassische Look mit Schrägen
 
 STR_GAME_OPTIONS_GUI_FONT_SPRITE                                :Nutze die traditionelle Sprite-Schriftart
 STR_GAME_OPTIONS_GUI_FONT_SPRITE_TOOLTIP                        :Dieses Kästchen ankreuzen, um die traditionelle Sprite-Schrift mit fester Größe zu verwenden

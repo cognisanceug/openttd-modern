@@ -253,7 +253,8 @@ struct MainWindow : Window
 		this->DrawWidgets();
 		if (_game_mode == GameMode::Menu) {
 			static const std::initializer_list<SpriteID> title_sprites = {SPR_OTTD_O, SPR_OTTD_P, SPR_OTTD_E, SPR_OTTD_N, SPR_OTTD_T, SPR_OTTD_T, SPR_OTTD_D};
-			uint letter_spacing = ScaleGUITrad(10);
+			/* The modern logo letters are set in their own advance boxes and only need a little tracking. */
+			uint letter_spacing = ScaleGUITrad(_settings_client.gui.modern_ui ? 1 : 10);
 			int name_width = static_cast<int>(std::size(title_sprites) - 1) * letter_spacing;
 
 			for (const SpriteID &sprite : title_sprites) {
