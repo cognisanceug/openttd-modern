@@ -23,7 +23,9 @@ Written to <outdir>/<name>.png (RGBA; overlays are transparent off the track):
   tram<4-22>         tram track overlay on roads (grooved rails), 19 road shapes (TRAMWAY 4 + offset)
   tram<27-45>        tram-only track on a grassed bed with sleepers (TRAMWAY 27 + offset)
 
-Usage: make_infra_textures.py <render/textures> <outdir> [size]
+Usage: make_infra_textures.py <render/textures> <outdir> [size] [--grass <name>]
+  --grass toy_grass  draw over render/textures/<name>.png instead of grass.png and write only
+                     the textures that show grass (the toyland variants, into render/textures/toyland/infra)
 """
 
 import os
@@ -240,6 +242,14 @@ def load_tiled(path, n):
     return np.asarray(Image.open(path).convert("RGB").resize((n, n), Image.BICUBIC), dtype=float)
 
 
+def grass_args(argv):
+    """argv without an optional '--grass <name>', and that name (default 'grass')."""
+    if "--grass" not in argv:
+        return argv, "grass"
+    i = argv.index("--grass")
+    return argv[:i] + argv[i + 2:], argv[i + 1]
+
+
 def save(img, path):
     """img holds RGB in 0-255 and alpha in 0-1."""
     rgba = np.concatenate([np.clip(img[..., :3], 0, 255), np.clip(img[..., 3:] * 255, 0, 255)], axis=2)
@@ -417,9 +427,9 @@ def bay_texture(n, entrance, truck, noise):
     return img
 
 
-def jobs(tex_dir, n):
-    """Every texture as (file name, function drawing it), slowest first."""
-    grass = load_tiled(os.path.join(tex_dir, "grass.png"), n)
+def jobs(tex_dir, n, grass_name="grass"):
+    """Every texture as (file name, function drawing it), slowest first; with another grass only those on grass."""
+    grass = load_tiled(os.path.join(tex_dir, grass_name + ".png"), n)
     rng = np.random.default_rng(1005)
     speck = rng.random((n // 4, n // 4))
     noise = np.asarray(Image.fromarray((speck * 255).astype(np.uint8)).resize((n, n), Image.NEAREST), dtype=float) / 255
@@ -471,15 +481,17 @@ def jobs(tex_dir, n):
     for base, truck in ((2692, False), (2708, True)):
         for k, entrance in enumerate(("NE", "SE", "SW", "NW")):
             out.append((f"bay{base + k}.png", partial(bay_texture, n, entrance, truck, noise)))
+    if grass_name != "grass":
+        out = [job for job in out if any(a is grass for a in job[1].args)]
     return out
 
 
 _JOBS = None
 
 
-def _init_worker(tex_dir, n):
+def _init_worker(tex_dir, n, grass_name):
     global _JOBS
-    _JOBS = jobs(tex_dir, n)
+    _JOBS = jobs(tex_dir, n, grass_name)
 
 
 def _run_job(i, outdir):
@@ -488,12 +500,13 @@ def _run_job(i, outdir):
 
 
 def main():
-    tex_dir, outdir = sys.argv[1], sys.argv[2]
-    n = int(sys.argv[3]) if len(sys.argv) > 3 else 1024
+    argv, grass_name = grass_args(sys.argv)
+    tex_dir, outdir = argv[1], argv[2]
+    n = int(argv[3]) if len(argv) > 3 else 1024
     os.makedirs(outdir, exist_ok=True)
-    count = len(jobs(tex_dir, 8))  # each worker builds the full-size job list itself
+    count = len(jobs(tex_dir, 8, grass_name))  # each worker builds the full-size job list itself
     workers = min(8, os.cpu_count() or 1)
-    with ProcessPoolExecutor(workers, initializer=_init_worker, initargs=(tex_dir, n)) as pool:
+    with ProcessPoolExecutor(workers, initializer=_init_worker, initargs=(tex_dir, n, grass_name)) as pool:
         list(pool.map(partial(_run_job, outdir=outdir), range(count)))
     print(f"wrote infrastructure textures to {outdir}")
 

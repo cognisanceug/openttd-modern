@@ -12,6 +12,7 @@ Currently covered (temperate; trees in all climates):
 | 4126–4296 | farm fields: 9 stages (ploughed, sown, young, green, turning, ripening, golden, stubble, stubble with round hay bales), 19 slopes each |
 | 4493–4568 | snow (sub-arctic) and desert (sub-tropical): 4 densities over the meadow, 19 slopes each; replaced only in their climate (the rest of those climates is still temperate or OpenGFX) |
 | 3924–4060 in toyland, `COAST_TILES_DIAGONAL` in toyland | toyland ground: lilac-grey putty for bare soil, felt-green meadow with pastel confetti for the grass stages, rough land with candy pompoms, rocky land with raspberry gravel, toy blocks and marbles; shores with the toyland meadow. Replaced only in toyland, which loads its own ground into the same sprite numbers |
+| 1011–1036, 1093–1118, 1175–1200, 1332–1350, 1370–1373, 1382–1385, 1394–1397, 2365–2396, 2636–2644, 2665–2666, 2669–2675, `AIRPORTS` 13–14, `WF_RIVERBANKS`, `WF_DIKES` in toyland | toyland variants of everything else with grass in it: rails, monorail and maglev on their ground, road verges, unpaved level crossings, tunnels (verges and the mound), the airport grass pieces, river banks and canal dikes, all with the toyland meadow. Town roads, paved crossings and the company HQ grounds hold no grass; the toyland houses' lawn (4675) is drawn from the toyland meadow directly |
 | 4090–4125 | farm field fences: hedge, hedge with gate, post-and-rail fence, yellow and red flowering hedge, dry stone wall; flat and both slope directions on the SW/SE edge shapes |
 | 4061      | open water (sea, lakes, canals) |
 | Action 5 `COAST_TILES_DIAGONAL` | all 18 shore shapes: water, foam line, beach, meadow by height |
@@ -114,6 +115,15 @@ $B -b --factory-startup -P blender/render_industries.py -- render/industries   #
 $B -b --factory-startup -P blender/render_airports.py -- render/airports   # [--only b2651,g2645,rig] [--part k/n]
 .venv/bin/python tools/check_calibration.py render/ground ref/ground
 .venv/bin/python tools/preview_tiling.py render/ground ref/ground render/preview_rocky_area.png rocky 2 12   # big area, variants as in game
+# toyland variants of the sprites with grass (GFX_GRASS=toy reads render/textures/toyland first, toy_grass for grass)
+.venv/bin/python tools/make_infra_textures.py render/textures render/textures/toyland/infra --grass toy_grass
+.venv/bin/python tools/make_transport_textures.py render/textures render/textures/toyland/infra --grass toy_grass
+.venv/bin/python tools/make_airport_textures.py render/textures render/textures/toyland/airport 512 --grass toy_grass
+.venv/bin/python tools/make_ground_textures.py render/textures --toyland   # also the toyland banks and dikes
+GFX_GRASS=toy $B -b --factory-startup -P blender/render_ground.py -- render/toyland --kinds infra,riverbank,canaldike --only rail1011,...,rail1036,road1332,...,road1350,cross1370,...,cross1373,bank,dike
+GFX_GRASS=toy $B -b --factory-startup -P blender/render_infra_extra.py -- render/toyland --only mono1093,...,mono1118,mglv1175,...,mglv1200,cross1382,...,cross1385,cross1394,...,cross1397
+GFX_GRASS=toy $B -b --factory-startup -P blender/render_tunnels.py -- render/toyland/tunnels
+GFX_GRASS=toy $B -b --factory-startup -P blender/render_airports.py -- render/toyland/airports --only g2636,...,g2644,g2665,g2666,g2669,...,g2675,gx13,gx14
 .venv/bin/python tools/pack_grf.py render ref/ground nml
 ```
 
@@ -139,6 +149,8 @@ SEED=5 tools/terrain_shot.sh terrain_4x   # TerrainTest funds farms and clears a
 CFG=terrain_toyland SEED=5 tools/terrain_shot.sh toyland_terrain_4x   # the same in toyland (no farms): bare putty -> grass
 tools/industry_shot.sh industry_4x   # IndustryTest builds HQ, statue, owned land and every industry (two waves: complete and under construction)
 tools/airport_shot.sh airport_4x     # AirportTest builds every airport type, docks in four directions, buoys and an oil rig
+CLIMATE=toyland CFG=infra_future tools/infra_shot.sh toyland_infra_4x   # CLIMATE= generates any of the above in another climate
+CLIMATE=toyland tools/airport_shot.sh toyland_airport_4x                # (toyland: rails, roads, tunnels, airports on the toyland meadow)
 ```
 
 Most render scripts take `--only prefix,prefix` to re-render a subset.
@@ -185,7 +197,10 @@ desert: DrawShoreTile() uses the one COAST block in every climate, map
 generation keeps desert at least 5 tiles from water, and land sloping down to
 the sea is below the snow line. The meadow on our shores matches the set's
 grass, which is used in every climate except toyland; toyland gets its own
-shores, rendered with the toyland meadow (`toyshore`).
+shores, rendered with the toyland meadow (`toyshore`). The sub-arctic and
+sub-tropical grass ground is the temperate meadow, so their verges, banks and
+gardens need no variant; in toyland every sprite with grass in it is rendered
+again over the toyland meadow (`GFX_GRASS=toy`, see the pipeline above).
 Scatter objects (tufts, boulders) are real geometry placed on the slope
 surface and cut to the tile outline by the footprint mask. Rails and roads
 are drawn as tile-space textures (tools/make_infra_textures.py: ballast,
