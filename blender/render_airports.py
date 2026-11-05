@@ -704,14 +704,17 @@ def building_jobs():
     jobs["b2654"] = simple(terminal_c, (0, 3))
     jobs["b2668"] = simple(airfield_terminal, (0, 0))
 
-    def hangar(direction, which, door="open", shift=None):
+    # Hangar fronts are drawn with their bounding box at (14, 0) but reach back to x = 0, which
+    # lies beyond the building canvas when the box origin is at the canvas origin. They are
+    # rendered from the tile's north corner instead; pack_airport.BOX_ORIGIN moves the offsets.
+    def hangar(direction, which, door="open"):
         def build():
             rear, front = hangar_parts(direction, door)
             if door == "closed":
-                return rear + front, shift or (14, 0), rear + front
+                return rear + front, (0, 0), rear + front
             if which == "rear":
                 return rear, (0, 0), None
-            return front, shift or (14, 0), rear + front
+            return front, (0, 0), rear + front
         return build
     jobs["b2655"] = hangar("SE", "front")
     jobs["b2656"] = hangar("SE", "rear")
@@ -727,7 +730,7 @@ def building_jobs():
             rear, front = airfield_hangar()
             if which == "rear":
                 return rear.parts, (0, 0), None
-            return front.parts, (14, 0), rear.parts + front.parts
+            return front.parts, (0, 0), rear.parts + front.parts
         return build
     jobs["b2657"] = small_hangar("front")
     jobs["b2658"] = small_hangar("rear")

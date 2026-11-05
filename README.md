@@ -48,7 +48,7 @@ Currently covered (temperate; trees in all climates):
 | 1821–1946 | sub-tropical trees: 7 palms, 7 rainforest trees (pale bark, lianas), fern, agave, saguaro and barrel cactus |
 | 1947–2009 | toyland trees: spinning top, candyfloss, balloon, tyre stack, curly wire, mushroom, striped cone, lollipop, leaf pole |
 | 2601–2632, 4790 | objects: transmitter, lighthouse, company statue, owned-land flag, company HQ in all 5 sizes (see *Objects and industries*) |
-| 2633, 2635–2691, Action 5 `AIRPORTS`, `OTTD_GUI` 86 | all original airports: aircraft stand, taxiway pieces (apron and grass split as in the original, yellow edge line), runways with edge and threshold lights (exits A–D, end with piano keys; along y for NewGRFs), terminals, round concourse, jetways and passenger bridge, control tower, heliport tower with roof helideck, hangars in four directions (rear wall split off as in the original), fences, radar (12 frames) and windsock (4 frames); small airfield with grass runway and timber buildings; helipads (see *Airports, docks and the oil rig*) |
+| 2633, 2635–2691, Action 5 `AIRPORTS`, `OTTD_GUI` 86 | all original airports: aircraft stand, taxiway pieces (grass islands with edges along the tile axes, so the yellow edge lines run straight from piece to piece), runways with edge and threshold lights (exits A–D, end with piano keys; along y for NewGRFs), terminals, round concourse, jetways and passenger bridge, control tower, heliport tower with roof helideck, hangars in four directions (rear wall split off as in the original), fences, radar (12 frames) and windsock (4 frames); small airfield with grass runway and timber buildings; helipads (see *Airports, docks and the oil rig*) |
 | 2727–2732, 693 | docks (quay deck at land height on piles, crane and containers on the water part) and the buoy (also the build-buoy toolbar icon, as in the original) |
 | 2096–2105 | oil rig: one model cut into three screen-column slices, with its construction stages |
 | 2011–2183, 2293–2340 | temperate industries: coal mine, power station, sawmill, forest, oil refinery, factory, printing works, steel mill, farm, oil wells, bank, iron ore mine; all construction stages and animation frames |
@@ -281,14 +281,19 @@ boxes, the S tile is a forecourt.
 kit, anchored at the bounding box origin of `table/station_land.h` with their cast
 shadow, grounds as tile-space textures (`tools/make_airport_textures.py`) from the
 apron and meadow textures, so airport tiles join the apron and the grass around
-them. The taxiway pieces 2636–2644 keep the original's split of apron and grass
-along screen-vertical or -horizontal lines; runway pieces carry one centre dash per
-tile so the line continues. Everything the draw table recolours (fascias, fences,
+them. The taxiway pieces 2636–2644 are grass islands on the apron with edges along
+the tile axes (the original's screen-vertical and -horizontal splits turn into
+sawtooth edges in this style); each piece's islands are chosen for its places in the
+city and metropolitan airports, so islands and 8-unit taxiways continue into the
+neighbouring pieces. Runway pieces carry one centre dash per tile so the line
+continues. Everything the draw table recolours (fascias, fences,
 jetways, hangar doors, windsock, dock crane) carries the company-colour mask.
 
 Hangars are drawn as two sprites, the rear wall behind the aircraft (box at x 0–2)
 and the rest in front (box at x 14–16); the four Action 5 hangars are one model
-mirrored. Radar (2680–2691) turns 30° per frame, the windsock (2676–2679) swings.
+mirrored. The fronts reach 14 units back from their box origin, beyond the building
+canvas, so they are rendered from the tile's north corner and `pack_airport.py`
+moves their offsets to the box origin. Radar (2680–2691) turns 30° per frame, the windsock (2676–2679) swings.
 The heliport's roof deck is at z 60, where helicopters land; the old helipad marking
 (`OTTD_GUI` 86) is flat, the helistation's (`AIRPORTS` 12) a pad two units high, as
 it is drawn at z 2. 2095, the helidepot office, is shared with the oil refinery
