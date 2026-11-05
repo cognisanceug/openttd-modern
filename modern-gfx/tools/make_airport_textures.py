@@ -9,8 +9,8 @@ around them without a seam.
 
 Written to <outdir>/<name>.png:
   stand2635            apron with an aircraft stand: white box, yellow lead-in line, stop bar
-  taxi2636-taxi2644    taxiway pieces: apron and grass split along a screen-vertical or
-                       -horizontal line as in the original, yellow edge line on the apron side
+  taxi2636-taxi2644    taxiway pieces: grass islands on apron with edges along the tile axes,
+                       kerb and yellow edge line on the apron side
   rwy2645-rwy2648      runway along x (exits A-D): asphalt, edge stripes, centre dash; A and D
                        also carry touchdown-zone bars
   rwyend2649           runway end: threshold piano keys
@@ -80,28 +80,43 @@ def with_alpha(rgb):
     return out
 
 
-# Taxiway pieces: apron where the split value is inside (lo, hi); the split value is
-# x - y (screen-vertical lines) or x + y (screen-horizontal lines), as in the original sprites.
+# Taxiway pieces as grass islands (x0, x1, y0, y1) on apron, edges along the tile axes so
+# they read as straight lines and continue into the neighbouring pieces. A side open to the
+# tile edge (-I / I) merges with the neighbour's island; a side at 4 or 12 leaves a 4-unit
+# apron margin that joins the neighbour's margin to an 8-unit taxiway. Laid out for the city
+# airport (rows x 1-5, columns y 2-4), and the S, H, N column of the metropolitan airport:
+#   x1: W  S            x3: S  HE VN        x5: N  (tower, radar)
+#   x2: VS HW           x4: H  N  E
+I = 99
 TAXI = {
-    2636: ("x-y", 7, 99),     # NS_WEST: apron in the west quarter
-    2637: ("x+y", 20, 99),    # EW_SOUTH: apron in the south part
-    2638: ("x-y", -10, 10),   # XING_SOUTH: north-south band
-    2639: ("x+y", -99, 21),   # XING_WEST: all but the south corner
-    2640: ("x-y", -10, 10),   # NS_CTR
-    2641: ("x+y", -99, 21),   # XING_EAST
-    2642: ("x-y", -99, -9),   # NS_EAST: apron in the east quarter
-    2643: ("x+y", -99, 4),    # EW_NORTH: the north tip
-    2644: ("x+y", 4, 21),     # EW_CTR: east-west band
+    2636: [(-I, 12, 4, 12)],             # APRON_W: island cut off from the stands and the S piece
+    2637: [(4, I, 4, 12)],               # APRON_S: island running on to the SW
+    2638: [],                            # VER_CROSSING_S: all apron, the junction off the pier
+    2639: [(-I, 12, 4, 12)],             # HOR_CROSSING_W: end of the S island beside the runway
+    2640: [(4, I, 4, 12)],               # VER_CROSSING_N: island running on to the SW
+    2641: [(4, I, 4, 12)],               # HOR_CROSSING_E: island running on to the SW
+    2642: [(-I, I, 4, 12)],              # APRON_E: island through to the radar grass
+    2643: [(-I, I, 4, 12)],              # ARPON_N: island through to the tower grass
+    2644: [(-I, 4, 4, 12), (12, I, 4, 12)],  # APRON_HOR: taxiway across the island along y
 }
 
 
-def taxi_texture(n, apron, grass, kind, lo, hi):
+def island_distance(x, y, rects, r=1.2):
+    """Signed distance outside the grass islands (negative inside), corners rounded by r."""
+    d = np.full(x.shape, 1e9)
+    for x0, x1, y0, y1 in rects:
+        cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+        hx, hy = (x1 - x0) / 2 - r, (y1 - y0) / 2 - r
+        qx, qy = np.abs(x - cx) - hx, np.abs(y - cy) - hy
+        d = np.minimum(d, np.hypot(np.maximum(qx, 0), np.maximum(qy, 0)) + np.minimum(np.maximum(qx, qy), 0) - r)
+    return d
+
+
+def taxi_texture(n, apron, grass, sprite):
     x, y = grid(n)
-    v = x - y if kind == "x-y" else x + y
-    # Distance (in tile units across the line) into the apron region; lines at 45 degrees.
-    d = np.minimum(v - lo, hi - v) / np.sqrt(2)
-    img = with_alpha(grass.copy())
-    blend(img, apron, smooth(-0.04, 0.04, d))
+    d = island_distance(x, y, TAXI[sprite])
+    img = with_alpha(apron.copy())
+    blend(img, grass, 1 - smooth(-0.04, 0.04, d))
     # Light kerb at the edge, then a yellow taxiway edge line just inside the apron.
     blend(img, MARKING * 0.92, band(d, 0.0, 0.16, 0.03))
     blend(img, YELLOW, band(d, 0.45, 0.7, 0.03))
@@ -208,8 +223,8 @@ def main():
     blend(stand, YELLOW, band(y, 7.85, 8.15, 0.03) * band(x, 1.65, 13.5, 0.03))
     blend(stand, MARKING, band(x, 12.6, 13.0, 0.03) * band(y, 6.6, 9.4, 0.03))
     out["stand2635"] = stand
-    for sprite, (kind, lo, hi) in TAXI.items():
-        out[f"taxi{sprite}"] = taxi_texture(n, apron, grass, kind, lo, hi)
+    for sprite in TAXI:
+        out[f"taxi{sprite}"] = taxi_texture(n, apron, grass, sprite)
     for sprite, td in ((2645, True), (2646, False), (2647, False), (2648, True)):
         out[f"rwy{sprite}"] = runway_texture(n, asphalt, "x", touchdown=td)
     out["rwyend2649"] = runway_texture(n, asphalt, "x", end=True)
