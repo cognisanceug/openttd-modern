@@ -45,6 +45,9 @@ Currently covered (temperate; trees in all climates):
 | 1821–1946 | sub-tropical trees: 7 palms, 7 rainforest trees (pale bark, lianas), fern, agave, saguaro and barrel cactus |
 | 1947–2009 | toyland trees: spinning top, candyfloss, balloon, tyre stack, curly wire, mushroom, striped cone, lollipop, leaf pole |
 | 2601–2632, 4790 | objects: transmitter, lighthouse, company statue, owned-land flag, company HQ in all 5 sizes (see *Objects and industries*) |
+| 2633, 2635–2691, Action 5 `AIRPORTS`, `OTTD_GUI` 86 | all original airports: aircraft stand, taxiway pieces (apron and grass split as in the original, yellow edge line), runways with edge and threshold lights (exits A–D, end with piano keys; along y for NewGRFs), terminals, round concourse, jetways and passenger bridge, control tower, heliport tower with roof helideck, hangars in four directions (rear wall split off as in the original), fences, radar (12 frames) and windsock (4 frames); small airfield with grass runway and timber buildings; helipads (see *Airports, docks and the oil rig*) |
+| 2727–2732, 693 | docks (quay deck at land height on piles, crane and containers on the water part) and the buoy (also the build-buoy toolbar icon, as in the original) |
+| 2096–2105 | oil rig: one model cut into three screen-column slices, with its construction stages |
 | 2011–2183, 2293–2340 | temperate industries: coal mine, power station, sawmill, forest, oil refinery, factory, printing works, steel mill, farm, oil wells, bank, iron ore mine; all construction stages and animation frames |
 
 Every sprite ships as 8bpp fallback plus 32bpp at 1x, 2x and 4x.
@@ -104,6 +107,8 @@ $B -b --factory-startup -P blender/render_objects.py -- render/objects
 .venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfx1_base.grf 2011 2340 ref/industries   # reference sizes only
 .venv/bin/python tools/make_industry_textures.py render/textures/industry   # needs numpy
 $B -b --factory-startup -P blender/render_industries.py -- render/industries   # [--only 2013,2150] [--part k/n]
+.venv/bin/python tools/make_airport_textures.py render/textures render/textures/airport 512   # needs numpy
+$B -b --factory-startup -P blender/render_airports.py -- render/airports   # [--only b2651,g2645,rig] [--part k/n]
 .venv/bin/python tools/check_calibration.py render/ground ref/ground
 .venv/bin/python tools/preview_tiling.py render/ground ref/ground render/preview_rocky_area.png rocky 2 12   # big area, variants as in game
 .venv/bin/python tools/pack_grf.py render ref/ground nml
@@ -126,6 +131,7 @@ SEED=5 tools/ingame_shot.sh toyland toyland_4x    # toyland trees
 LOAD="$PWD/test-home/terrain_test.sav" ZOOM=2 tools/ingame_shot.sh modern terrain_2x   # 2x sprites
 SEED=5 tools/terrain_shot.sh terrain_4x   # TerrainTest funds farms and clears a row of land every 8 days: fields, fences, bare soil -> grass (~3 min)
 tools/industry_shot.sh industry_4x   # IndustryTest builds HQ, statue, owned land and every industry (two waves: complete and under construction)
+tools/airport_shot.sh airport_4x     # AirportTest builds every airport type, docks in four directions, buoys and an oil rig
 ```
 
 Most render scripts take `--only prefix,prefix` to re-render a subset.
@@ -227,6 +233,33 @@ seams and the far walls show through the tiles in front of them.
 The tiny and small HQs live entirely in ground sprites (as in the original) and
 stay low; medium to huge HQs put the building into the N, E and W tiles' full-tile
 boxes, the S tile is a forecourt.
+
+## Airports, docks and the oil rig
+
+`blender/render_airports.py` follows the objects and industries: buildings from the
+kit, anchored at the bounding box origin of `table/station_land.h` with their cast
+shadow, grounds as tile-space textures (`tools/make_airport_textures.py`) from the
+apron and meadow textures, so airport tiles join the apron and the grass around
+them. The taxiway pieces 2636–2644 keep the original's split of apron and grass
+along screen-vertical or -horizontal lines; runway pieces carry one centre dash per
+tile so the line continues. Everything the draw table recolours (fascias, fences,
+jetways, hangar doors, windsock, dock crane) carries the company-colour mask.
+
+Hangars are drawn as two sprites, the rear wall behind the aircraft (box at x 0–2)
+and the rest in front (box at x 14–16); the four Action 5 hangars are one model
+mirrored. Radar (2680–2691) turns 30° per frame, the windsock (2676–2679) swings.
+The heliport's roof deck is at z 60, where helicopters land; the old helipad marking
+(`OTTD_GUI` 86) is flat, the helistation's (`AIRPORTS` 12) a pad two units high, as
+it is drawn at z 2. 2095, the helidepot office, is shared with the oil refinery
+and stays the industry render.
+
+Docks: the slope part (2727–2730, one per water direction) is a quay deck at land
+height on piles over the slope, the water part (2731/2732, shared by both docks of
+an axis) the same deck over the water with crane and containers. The buoy is drawn
+from sprite 693, which is also the toolbar icon. The oil rig is modelled once over
+its 2×3 tiles; as in the original only the three tiles of the x = 1 row draw it,
+each the screen-column slice x − y ≥ 16, 0–16 or < 0 of the model, so the slices
+meet without overlap. The helideck sits where helicopters land (31, 9, z 54).
 
 ## Trees
 
