@@ -1,13 +1,16 @@
 #!/bin/sh
 # Start OpenTTD in an isolated test home, take one screenshot and quit.
-# Usage: [SEED=n | LOAD=savegame] [SHOT=big|normal] [SIZE="w h"] ingame_shot.sh <config> <name> [keep]
+# Usage: [SEED=n | LOAD=savegame] [SHOT=big|normal] [ZOOM=4|2] [SIZE="w h"] ingame_shot.sh <config> <name> [keep]
 #   modern  OpenGFX plus nml/modern_terrain.grf      base  OpenGFX only
 #   water   like modern, with a high sea level so coasts and rivers show up
 #   town    like modern, with many towns: houses and roads on slopes show foundations
+#   arctic / tropic  like modern in the sub-arctic / sub-tropical climate (snow, desert)
+#   terrain like infra, runs the TerrainTest game script (see tools/terrain_shot.sh)
 #   infra   like modern, runs the InfraTest game script and autosaves every minute
 #           (see tools/infra_shot.sh)
 #   LOAD    load this savegame instead of generating a map
 #   SHOT=big renders at the max zoom-in (4x), SHOT=normal always at 1x.
+#   ZOOM=2 caps the zoom-in at 2x, so SHOT=big shows the 2x sprites.
 #   The view cannot be scrolled from the start script (the viewport is placed
 #   afterwards), so pick the map with SEED instead (5: trees, 1: rocks).
 #   keep: leave the game window open instead of quitting.
@@ -19,6 +22,7 @@ H="$PWD/test-home"
 T="$H/Documents/OpenTTD"
 mkdir -p "$T/baseset" "$T/newgrf" "$T/scripts" "$T/screenshot"
 cp test-config/*.cfg "$T/"
+[ "${ZOOM:-4}" = 2 ] && sed -i '' 's/^zoom_min = 0/zoom_min = 1/' "$T/$1.cfg"
 rm -rf "$T/game" && cp -R test-config/game "$T/game"
 [ -f "$T/baseset/opengfx-8.0.tar" ] || cp "$HOME/Documents/OpenTTD/baseset/opengfx-8.0.tar" "$T/baseset/"
 ln -sf "$PWD/nml/modern_terrain.grf" "$T/newgrf/modern_terrain.grf"

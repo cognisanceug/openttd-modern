@@ -7,9 +7,12 @@ Kinds (each covers the 19 slope shapes in OpenTTD's order, see SPRITE_SLOPES):
   grass13  3943  soil, 1/3 grass
   grass23  3962  soil, 2/3 grass
   grass    3981  meadow
-  rough    4000  rough land; plus 4019-4022, four flat variants
+  rough    4000  rough land; plus 4019-4022, four flat variants with their own texture (rough1-4)
   rocky1   4023  rocky land
-  rocky2   4042  rocky land, second set (different boulder layout)
+  rocky2   4042  rocky land, second set (own texture rocky2 and boulder layout)
+  farm0-8  4126+19k farm field stages (bare, sown ... golden, stubble, hay bales)
+  snow1-4, desert1-4  4493+19(k-1) snow / desert densities; only on request, into
+           their own outdir (the sprite numbers are shared by both climates)
 Water kinds (output files are named after the sprite slot, not a base sprite):
   water    4061      open water (sea, lakes, flat river), unshaded
   shore    shore0-17 Action 5 COAST block; index -> slope as in DrawShoreTile()
@@ -63,8 +66,16 @@ KINDS = {
     "grass": (3981, "grass", None),
     "rough": (4000, "rough", "tufts"),
     "rocky1": (4023, "rocky", "rocks"),
-    "rocky2": (4042, "rocky", "rocks"),
+    "rocky2": (4042, "rocky2", "rocks"),
 }
+# Farm fields 4126-4296: nine stages in _clear_land_sprites_farmland order (textures
+# field0-8 from make_fields()); the last stage carries hay bales.
+FIELD_KINDS = {f"farm{k}": (4126 + 19 * k, f"field{k}", "bales" if k == 8 else None) for k in range(9)}
+KINDS.update(FIELD_KINDS)
+# Snow (arctic) and desert (tropic) both use 4493-4568, four densities x 19 slopes. They
+# are never in the default kind list; render each into its own outdir (render/snow,
+# render/desert), as the sprite numbers collide.
+CLIMATE_KINDS = {f"{c}{k}": (4493 + 19 * (k - 1), f"{c}{k}", None) for c in ("snow", "desert") for k in range(1, 5)}
 ROUGH_FLAT_VARIANTS = (4019, 4020, 4021, 4022)
 WATER_KINDS = ("water", "shore", "river", "coastrocks", "riverbank", "infra")
 # Sloped track sprites 1023-1034 (offset from 1011 -> slope), see _track_sloped_sprites.
@@ -127,7 +138,7 @@ def jobs(kinds):
         if kind == "infra":
             out += [(name, slope, kind, name) for name, slope, _ in infra_jobs()]
             continue
-        first = KINDS[kind][0]
+        first = {**KINDS, **CLIMATE_KINDS}[kind][0]
         out += [(first + k, slope, kind, first + k) for k, slope in enumerate(oc.SPRITE_SLOPES)]
         if kind == "rough":
             out += [(s, 0, kind, s) for s in ROUGH_FLAT_VARIANTS]
@@ -250,13 +261,20 @@ def add_foam_ring(x, y, z, r, material):
     add_mesh("foam", bm, material, Matrix.Translation((x, y, z + 0.002)))
 
 
-def add_rocks(slope, rng, count, materials, foam=None):
+def add_rocks(slope, rng, count, materials, foam=None, spread=False):
+    """Boulders; with spread, mostly small stones that may come close to the tile edges."""
     placed = []
     for i in range(count * 4):
         if len(placed) >= count:
             break
-        r = rng.uniform(0.045, 0.11)
-        (x, y), = scatter_points(rng, 1, 0.08 + r)
+        if spread:
+            # A few big boulders, many small stones; small ones get near the edges,
+            # so the boulders of neighbouring tiles do not line up in a grid.
+            r = rng.uniform(0.07, 0.11) if len(placed) < 2 else rng.uniform(0.025, 0.06)
+            (x, y), = scatter_points(rng, 1, 0.015 + 1.25 * r)
+        else:
+            r = rng.uniform(0.045, 0.11)
+            (x, y), = scatter_points(rng, 1, 0.08 + r)
         if any((x - px) ** 2 + (y - py) ** 2 < (r + pr) ** 2 for px, py, pr in placed):
             continue
         placed.append((x, y, r))
@@ -266,6 +284,27 @@ def add_rocks(slope, rng, count, materials, foam=None):
         m = (Matrix.Translation((x, y, surface_z(slope, x, y) - r * 0.25)) @ rot
              @ Matrix.Diagonal((r * rng.uniform(1.0, 1.4), r, r * rng.uniform(0.55, 0.8), 1)))
         add_mesh(f"rock{i}", bm, rng.choice(materials), m)
+
+
+HAY_COLOR = (214, 184, 108)
+
+
+def add_bales(slope, rng, count, material):
+    """Round hay bales lying on the field, axis along the furrows (world X)."""
+    placed = []
+    for i in range(count * 6):
+        if len(placed) >= count:
+            break
+        r, depth = 0.05, 0.075
+        (x, y), = scatter_points(rng, 1, 0.1)
+        if any((x - px) ** 2 + (y - py) ** 2 < (2.6 * r) ** 2 for px, py in placed):
+            continue
+        placed.append((x, y))
+        bm = bmesh.new()
+        bmesh.ops.create_cone(bm, cap_ends=True, segments=8, radius1=r, radius2=r, depth=depth)
+        m = (Matrix.Translation((x, y, surface_z(slope, x, y) + r * 0.9))
+             @ Matrix.Rotation(rng.uniform(-0.3, 0.3), 4, "Z") @ Matrix.Rotation(math.pi / 2, 4, "Y"))
+        add_mesh(f"bale{i}", bm, material, m)
 
 
 def holdout_material():
@@ -322,7 +361,10 @@ def ground_material(kind, piece=None):
         if piece in {n for n, _, overlay in infra_jobs() if overlay}:
             return st.bank_material(path)
         return st.toon_material("infra", image_path=path, params=st.GROUND, extension="EXTEND")
-    return st.toon_material("ground", image_path=tex(KINDS[kind][1]), params=st.GROUND)
+    name = {**KINDS, **CLIMATE_KINDS}[kind][1]
+    if kind == "rough" and piece in ROUGH_FLAT_VARIANTS:
+        name = f"rough{ROUGH_FLAT_VARIANTS.index(piece) + 1}"  # own texture variant, see make_rough_rocky()
+    return st.toon_material("ground", image_path=tex(name), params=st.GROUND)
 
 
 def add_scatter(kind, slope, seed):
@@ -332,9 +374,11 @@ def add_scatter(kind, slope, seed):
         mats = [st.toon_material(f"tuft{i}", c) for i, c in enumerate(TUFT_COLORS)]
         add_tufts(slope, rng, 34, mats)
         add_shrubs(slope, rng, 3, st.toon_material("shrub", SHRUB_COLOR))
+    elif scatter == "bales":
+        add_bales(slope, rng, rng.randint(3, 5), st.toon_material("hay", HAY_COLOR))
     elif scatter == "rocks":
         mats = [st.toon_material(f"rock{i}", c) for i, c in enumerate(ROCK_COLORS)]
-        add_rocks(slope, rng, rng.randint(6, 9), mats)
+        add_rocks(slope, rng, rng.randint(7, 11), mats, spread=True)
         add_tufts(slope, rng, 10, [st.toon_material("tuft", TUFT_COLORS[0])])
 
 
