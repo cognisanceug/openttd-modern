@@ -11,6 +11,7 @@ Currently covered (temperate; trees in all climates):
 | 3924–4060 | ground: bare soil, 1/3 and 2/3 grass, grass, rough land (+4 flat variants with their own texture), two rocky sets (own texture and boulders each; the GRF switches the second set on) |
 | 4126–4296 | farm fields: 9 stages (ploughed, sown, young, green, turning, ripening, golden, stubble, stubble with round hay bales), 19 slopes each |
 | 4493–4568 | snow (sub-arctic) and desert (sub-tropical): 4 densities over the meadow, 19 slopes each; replaced only in their climate (the rest of those climates is still temperate or OpenGFX) |
+| 3924–4060 in toyland, `COAST_TILES_DIAGONAL` in toyland | toyland ground: lilac-grey putty for bare soil, felt-green meadow with pastel confetti for the grass stages, rough land with candy pompoms, rocky land with raspberry gravel, toy blocks and marbles; shores with the toyland meadow. Replaced only in toyland, which loads its own ground into the same sprite numbers |
 | 4090–4125 | farm field fences: hedge, hedge with gate, post-and-rail fence, yellow and red flowering hedge, dry stone wall; flat and both slope directions on the SW/SE edge shapes |
 | 4061      | open water (sea, lakes, canals) |
 | Action 5 `COAST_TILES_DIAGONAL` | all 18 shore shapes: water, foam line, beach, meadow by height |
@@ -39,6 +40,7 @@ Currently covered (temperate; trees in all climates):
 | 1313–1350 | roads with pavements (towns) and with grass verges: 19 shapes each incl. slopes and dead ends |
 | 1370–1381 | level crossings, open and barred |
 | 1420–1575, 4404–4417 | all 31 temperate town houses (52 variants incl. the 2×2 stadiums and shopping mall and the 1×2 hotel), with their grounds (lawn with hedge and path, paving, construction site, pitches) and construction stages (foundations, walls with scaffolding); recolourable facades keep their `PALETTE_TO_STRUCT_*` variants via a structure recolour mask; the office block lift (1443) |
+| 1566–1569, 4418–4492, 4569–4625, 4627–4676, 4694–4698 | the town houses of the other climates with their grounds and construction stages: sub-arctic (steep roofs, timber, falu red and ochre; every house also above the snow line with its roofs and garden under snow), sub-tropical (white and ochre walls, flat or low tiled roofs, arcades, roof water tanks, palms; they bring their own sand garden or sandstone paving), toyland (toy houses, a boot, igloo, tepees, teapot, piggy bank and a toy soldier; built in a gift box that is unwrapped) |
 | Action 5 `ONE_WAY_ROAD` | one-way markers: a white arrow in each lane (no-entry bars when both directions are closed), flat and on inclined roads |
 | 1576–1708 | temperate trees: 19 bases × 7 growth stages (cypress and poplar as slim columns of foliage lumps, dead cypress as a bare spire) |
 | 1709–1820 | sub-arctic trees: 8 species, and the same 8 with snow on every upward facet for above the snow line |
@@ -87,6 +89,7 @@ tar -xf ~/Documents/OpenTTD/baseset/opengfx-8.0.tar -C ref
 $B -b --factory-startup -P blender/render_ground.py -- render/ground
 $B -b --factory-startup -P blender/render_ground.py -- render/snow --kinds snow1,snow2,snow3,snow4
 $B -b --factory-startup -P blender/render_ground.py -- render/desert --kinds desert1,desert2,desert3,desert4
+$B -b --factory-startup -P blender/render_ground.py -- render/toyland --kinds toybare,toygrass13,toygrass23,toygrass,toyrough,toyrocky1,toyrocky2,toyshore
 $B -b --factory-startup -P blender/render_trees.py -- render/trees
 $B -b --factory-startup -P blender/render_foundations.py -- render/foundations
 $B -b --factory-startup -P blender/render_fences.py -- render/fences
@@ -127,9 +130,13 @@ SEED=1 SIZE="4800 3200" CFG=infra_future tools/infra_shot.sh guideway_4x   # 209
 SEED=1 SIZE="4800 3200" tools/infra_shot.sh infra_4x   # InfraTest builds rails, roads, one-way roads, crossings, signals, depots, bridges, tunnels, stations, electrifies (start year 2000)
 SEED=5 tools/ingame_shot.sh arctic arctic_4x      # sub-arctic: snow ground, trees with and without snow
 SEED=5 tools/ingame_shot.sh tropic tropic_4x      # sub-tropical: desert ground, palms, rainforest, cacti
-SEED=5 tools/ingame_shot.sh toyland toyland_4x    # toyland trees
+SEED=5 tools/ingame_shot.sh toyland toyland_4x    # toyland trees and ground
+SEED=4 SIZE="2400 1600" tools/ingame_shot.sh arctic_town arctic_town_4x    # sub-arctic town above the snow line (SEED=1: below it)
+SEED=1 SIZE="2400 1600" tools/ingame_shot.sh tropic_town tropic_town_4x    # sub-tropical houses (SEED=6: the tall ones)
+SEED=5 SIZE="2400 1600" tools/ingame_shot.sh toyland_town toyland_town_4x  # toyland houses
 LOAD="$PWD/test-home/terrain_test.sav" ZOOM=2 tools/ingame_shot.sh modern terrain_2x   # 2x sprites
 SEED=5 tools/terrain_shot.sh terrain_4x   # TerrainTest funds farms and clears a row of land every 8 days: fields, fences, bare soil -> grass (~3 min)
+CFG=terrain_toyland SEED=5 tools/terrain_shot.sh toyland_terrain_4x   # the same in toyland (no farms): bare putty -> grass
 tools/industry_shot.sh industry_4x   # IndustryTest builds HQ, statue, owned land and every industry (two waves: complete and under construction)
 tools/airport_shot.sh airport_4x     # AirportTest builds every airport type, docks in four directions, buoys and an oil rig
 ```
@@ -173,9 +180,12 @@ its animated neighbour's mean), each pair averages to the teal, and only the
 cycle's brightness change shows, moving along the crests. The pattern is
 periodic in tile coordinates, so seas, shores, rivers, canals and aqueduct
 troughs join without seams. `water_anim.py <render/ground> <ref/ground> out.gif`
-simulates the cycle for a patch of sea. Desert and snow shores do not exist in
-OpenTTD: DrawShoreTile() uses the one COAST block in every climate, so for the
-other climates the meadow on our shores would need a climate switch.
+simulates the cycle for a patch of sea. Coast tiles never carry snow or
+desert: DrawShoreTile() uses the one COAST block in every climate, map
+generation keeps desert at least 5 tiles from water, and land sloping down to
+the sea is below the snow line. The meadow on our shores matches the set's
+grass, which is used in every climate except toyland; toyland gets its own
+shores, rendered with the toyland meadow (`toyshore`).
 Scatter objects (tufts, boulders) are real geometry placed on the slope
 surface and cut to the tile outline by the footprint mask. Rails and roads
 are drawn as tile-space textures (tools/make_infra_textures.py: ballast,
@@ -202,6 +212,18 @@ structure recolour mask as the bridges (index 75 is a brick red, so the plain
 variant keeps a brick facade). Grounds are tile-space textures
 (tools/make_house_textures.py) laid on the flat tile; buildings cast a soft
 shadow onto their own tile.
+
+The houses of the other climates use the same kit; their models are in
+blender/house_climates.py. Sub-arctic houses above the snow line are the same
+model with every roof under snow (model name "…@snow"), on snowy grounds made
+from the set's snow texture. Finished houses whose original ground is the bare
+land (all sub-tropical houses, the sub-arctic hotel and brick block) draw their
+own ground inside the building sprite, under the cast shadow. Toyland houses
+are built in a gift box: closed at stage 0, unwrapped with the house standing
+in it later. All these sprite numbers are only used in their climate, so they
+are replaced without climate checks; the one sprite pair a climate base set
+replaces (statue and fountain 1454/1455 in sub-tropical) keeps the temperate
+drawing, which fits there too.
 
 ## Objects and industries
 
@@ -280,8 +302,7 @@ the toyland leaf pole use arching leaf blades with a raised midrib; leaning
 trunks lean to the screen's left as in OpenGFX. The burst toyland balloon
 (last stage of 0x7A9) is an empty sprite.
 Tree canvases are 64z × 112z px with the drawing origin at (31z, 80z), tall
-enough for the 76 px rainforest tree and palm. Toyland ground is not covered yet: there the set's temperate ground
-replaces OpenGFX's.
+enough for the 76 px rainforest tree and palm.
 
 ## Interface
 
@@ -295,14 +316,17 @@ font completes the look, e.g. in `openttd.cfg` under `[misc]`:
 `large_font = AvenirNext-DemiBold`, `prefer_sprite_font = false`.
 
 `nml/modern_gui.grf` is a separate NewGRF for interface graphics; it holds the
-title screen logo, set by `tools/make_logo.py`, and the 36 main toolbar icons
-plus the minimap buttons, flat symbols in the colours of the set drawn by
-`tools/make_icons.py`. `tools/make_gui_icons.py` draws the other interface
-sprites in the same style: the rail, road, tram, water, air and landscaping
-toolbars with their cursors, the signal window, the vehicle, depot and group
+title screen logo, set by `tools/make_logo.py`, the 36 main toolbar icons
+plus the minimap buttons, and the build menu icons (rail and electric rail,
+road, tram, water, airport, landscaping), flat symbols in the colours of the
+set drawn by `tools/make_icons.py`; tracks and roads follow the map's
+isometric axes. `tools/make_gui_icons.py` draws the other interface sprites
+in the same style: the monorail and maglev build icons, the cursors of all
+build tools (with the make_icons drawings), the vehicle, depot and group
 buttons, the window glyphs (scroll and dropdown arrows, pin, shade, resize,
 check boxes), cargo icons and small status icons. Each keeps the size and
-offset of its OpenGFX original, so layouts and cursor hotspots stay put. In the modern style the toolbar's red separators are
+offset of its OpenGFX original, so layouts and cursor hotspots stay put.
+In the modern style the toolbar's red separators are
 dark slate. The title game tries
 `baseset/opntitle_modern.dat` first, a town scene that needs Modern Terrain
 and Modern Interface enabled for new games; without them the default
@@ -323,6 +347,8 @@ TITLE=shots/title.sav tools/gui_shot.sh modern title title_modern
 `tools/gui_icons_shot.sh modern icons rail:build_rail,build_signals depot:depot,vehicle`.
 
 The shots use two console commands of the fork: `show_window <name>` opens a
-window from a script (`depot`, `vehicle` and `orders` first build a depot with
-a train next to the largest town; `close_all` closes the open windows), and `schedule in-5-seconds <script>` runs a script after
+window from a script (`WINDOWS="build_water"` picks them for `gui_shot.sh`;
+only one build toolbar is open at a time; `depot`, `vehicle` and `orders`
+first build a depot with a train next to the largest town; `close_all`
+closes the open windows), and `schedule in-5-seconds <script>` runs a script after
 a few seconds of real time, also on the title screen.

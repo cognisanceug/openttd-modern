@@ -25,7 +25,10 @@ Farm fields 4126-4296 (nine stages, 19 slopes each) are packed like ground
 tiles; their fences 4090-4125 (six types) like overlays. The GRF also sets
 second_rocky_tileset, so rocky land alternates between the sets 4023 and 4042.
 Snow (arctic) and desert (tropic) densities 4493-4568 come from render/snow and
-render/desert and are replaced only in their climate.
+render/desert and are replaced only in their climate. Toyland loads its own
+ground into the same sprites 3924-4060 (table/landscape_sprite.h), so in toyland
+an if-block replaces them again from render/toyland, together with the shores,
+whose meadow band is the toyland grass.
 
 Signals: 1275-1290 (electric block signals) and the 240-sprite Action 5
 PRE_SIGNAL_SEMAPHORE_PBS block, indexed like DrawSingleSignal(); slots the game
@@ -69,9 +72,10 @@ tunnel wires 80-83, bridge wires 95-106 and tram-only bridge decks 107-112 (tram
 
 One-way road markers: Action 5 ONE_WAY_ROAD, drawn at the tile centre (oneway_block).
 
-Town houses 1420-1575 and 4404-4417 (render_houses.py): buildings are the
-rendered house with its cast shadow under it, recolourable facades carry a
-structure recolour mask; grounds are the flat tile, with house parts laid over
+Town houses of all climates, 1420-1575, 4404-4492, 4569-4625, 4627-4676 and
+4694-4698 (render_houses.py): buildings are the rendered house with its cast
+shadow under it (and under that the house's own ground where it has one),
+recolourable facades carry a structure recolour mask; grounds are the flat tile, with house parts laid over
 it where the original draws the house in the ground sprite. The lift (1443) is
 a child sprite placed relative to the top-left corner of the office block
 sprite (1442), so its offsets are taken from that sprite's crop. Unused
@@ -86,7 +90,7 @@ OTTD_GUI helipad), docks 2727-2732, the buoy 693 and the oil rig 2096-2105: see
 tools/pack_airport.py.
 
 Usage: pack_grf.py <render-dir> <ref/ground> <nml-dir>
-  (render-dir holds ground/, snow/, desert/, trees/, foundations/, fences/, signals/, depots/, bridges/,
+  (render-dir holds ground/, snow/, desert/, toyland/, trees/, foundations/, fences/, signals/, depots/, bridges/,
    tunnels/, stations/, catenary/, houses/, objects/, industries/, airports/)
 """
 
@@ -231,13 +235,22 @@ def tree_sprite(render_dir, sprite, zoom):
     return out.crop((left, top, right, bottom)), left - 31 * zoom, top - TREE_ANCHOR_Y * zoom
 
 
-def house_sprite(render_dir, sprite, zoom, cc):
-    """Building with its shadow under it, cropped; origin (47z, 136z). Returns (im, x, y, recolour mask)."""
+def house_sprite(render_dir, sprite, zoom, cc, base=False):
+    """Building with its shadow under it, cropped; origin (47z, 136z). Returns (im, x, y, recolour mask).
+
+    base: the house brings its own ground (b<sprite>_base.png), drawn under the shadow."""
     d = os.path.join(render_dir, f"z{zoom}")
     building = Image.open(os.path.join(d, f"b{sprite}_overlay.png")).convert("RGBA")
     catcher = Image.open(os.path.join(d, f"b{sprite}_shadow.png")).convert("RGBA")
-    out = Image.new("RGBA", building.size, SHADOW_RGB + (0,))
-    out.putalpha(catcher.getchannel("A").point(lambda a: round(a * SHADOW_ALPHA)))
+    shadow = Image.new("RGBA", building.size, SHADOW_RGB + (0,))
+    shadow.putalpha(catcher.getchannel("A").point(lambda a: round(a * SHADOW_ALPHA)))
+    if base:
+        out = Image.open(os.path.join(d, f"b{sprite}_base.png")).convert("RGBA")
+        mask = Image.open(os.path.join(d, f"b{sprite}_basemask.png")).convert("RGBA").getchannel("A")
+        out.putalpha(mask.point(lambda a: 255 if a >= 128 else 0))
+        out.alpha_composite(shadow)
+    else:
+        out = shadow
     out.alpha_composite(building)
     a = out.getchannel("A").point(lambda v: v if v >= 4 else 0)
     out.putalpha(a)
@@ -276,13 +289,16 @@ def house_blocks(house_dir, table, gfx_dir):
     buildings, grounds = hs.building_jobs(data), hs.ground_jobs(data)
     empty = (Image.new("RGBA", (1, 1), (0, 0, 0, 0)), 0, 0, Image.new("L", (1, 1), 0))
     out = []
-    for name, first, last in (("houses", 1420, 1575), ("houses_late", 4404, 4417)):
+    # Temperate and sub-arctic (1566-1569), then the houses of the other climates, which have sprite
+    # numbers of their own (between them only the snow and desert grounds 4493-4568).
+    for name, first, last in (("houses", 1420, 1575), ("houses_late", 4404, 4492), ("houses_snow", 4569, 4625),
+                              ("houses_toyland", 4627, 4676), ("houses_toyland2", 4694, 4698)):
         sprites = {}
         for z in ZOOMS:
             row = []
             for n in range(first, last + 1):
                 if n in buildings:
-                    row.append(house_sprite(house_dir, n, z, buildings[n]["rc"]))
+                    row.append(house_sprite(house_dir, n, z, buildings[n]["rc"], bool(buildings[n]["base"])))
                 elif n in grounds:
                     row.append(house_ground_sprite(house_dir, n, z))
                 else:
@@ -637,6 +653,19 @@ def main():
             parts.append(sheet_block(f"{cdir}{k + 1}", f"replace {{name}}({first}, {{file}})",
                                      list(range(first, first + 19)), tiles, gfx_dir))
         nml.append(f"if (climate == {climate}) {{\n" + "\n".join(parts) + "}\n")
+    # Toyland: its own ground in 3924-4060 and shores with the toyland meadow.
+    toy_dir = os.path.join(render_dir, "toyland")
+    parts = []
+    for name, first, count in GROUND_BLOCKS:
+        tiles = {z: [ground_sprite(toy_dir, first + k, z, meta[str(first + k)]) for k in range(count)] for z in ZOOMS}
+        parts.append(sheet_block(f"toy_{name}", f"replace {{name}}({first}, {{file}})",
+                                 [first + k for k in range(count)], tiles, gfx_dir))
+    shores = WATER_BLOCKS[1][2]
+    tiles = {z: [water_anim.animate(ground_sprite(toy_dir, n, z, grass_meta(slope)), z) for n, slope in shores]
+             for z in ZOOMS}
+    parts.append(sheet_block("toy_water_shore", WATER_BLOCKS[1][1], [n for n, _ in shores], tiles, gfx_dir,
+                             mask_index=None))
+    nml.append("if (climate == CLIMATE_TOYLAND) {\n" + "\n".join(parts) + "}\n")
     nml.append(tram_extra_blocks(render_dir, gfx_dir))
     nml.append(oneway_block(render_dir, gfx_dir))
     nml.append(guideway_blocks(render_dir, grass_meta, gfx_dir))

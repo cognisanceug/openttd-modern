@@ -8,8 +8,9 @@ sprite, a building sprite (with palettes), the building's bounding box
 _original_house_specs gives name, size and climates per house id; parts of
 multi-tile houses follow their base id with empty flags.
 
-Writes {"houses": [{id, name, size, temperate, toyland, tiles}], "ents": [...]};
-"tiles" lists the house ids drawn for a temperate base house (one per tile).
+Writes {"houses": [{id, name, size, temperate, arctic, snow, tropic, toyland, tiles}], "ents": [...]};
+arctic marks sub-arctic houses (snow: the variant above the snow line), "tiles"
+lists the house ids drawn for a base house (one per tile).
 
 Usage: house_table.py <src/table> <out.json>
 """
@@ -41,11 +42,13 @@ def main():
     for i, block in enumerate(re.split(r"\n\tMS\(", specs)[1:]):
         name = re.search(r"STR_TOWN_BUILDING_NAME_(\w+)", block).group(1)
         size = re.search(r"Size(\dx\d)", block)
-        houses.append(dict(id=i, name=name, size=size.group(1) if size else "1x1",
-                           temperate="ClimateTemperate" in block, toyland="ClimateToyland" in block))
+        houses.append(dict(id=i, name=name, size=size.group(1) if size else None,
+                           temperate="ClimateTemperate" in block, toyland="ClimateToyland" in block,
+                           arctic="ClimateSubarctic" in block, snow="ClimateSubarcticAboveSnow" in block,
+                           tropic="ClimateSubtropic" in block))
     tiles_for = {"1x1": 1, "2x1": 2, "1x2": 2, "2x2": 4}
     for h in houses:
-        if h["temperate"]:
+        if h["size"]:
             h["tiles"] = list(range(h["id"], h["id"] + tiles_for[h["size"]]))
     assert len(ents) == 16 * len(houses), (len(ents), len(houses))
     json.dump(dict(houses=houses, ents=ents), open(out, "w"), indent=1)

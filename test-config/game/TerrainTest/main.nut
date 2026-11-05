@@ -9,12 +9,13 @@ function TerrainTest::Start()
 	local cx = GSMap.GetMapSizeX() / 2;
 	local cy = GSMap.GetMapSizeY() / 2;
 
-	/* Farms north and west of the centre (deity mode); they plant fields with fences around them. */
+	/* Farms north and west of the centre (deity mode); they plant fields with fences around them.
+	 * Toyland has no farms: then only the cleared rows. */
 	local farm = null;
 	foreach (it, _ in GSIndustryTypeList()) {
 		if (GSIndustryType.GetName(it) == "Farm") farm = it;
 	}
-	local spots = [[cx - 4, cy - 9], [cx + 6, cy - 8], [cx - 12, cy - 1]];
+	local spots = farm == null ? [] : [[cx - 4, cy - 9], [cx + 6, cy - 8], [cx - 12, cy - 1]];
 	foreach (s in spots) {
 		local done = false;
 		for (local r = 0; r < 6 && !done; r++) {
