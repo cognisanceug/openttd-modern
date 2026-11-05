@@ -9,6 +9,10 @@ Currently covered (temperate):
 | Sprites   | Content |
 |-----------|---------|
 | 3924–4060 | ground: bare soil, 1/3 and 2/3 grass, grass, rough land (+4 flat variants), two rocky sets |
+| 4061      | open water (sea, lakes, flat rivers) |
+| Action 5 `COAST_TILES_DIAGONAL` | all 18 shore shapes: water, foam line, beach, meadow by height |
+| Action 5 `CANALS` 0–3 | river slopes |
+| Action 5 `OVERLAY_ROCKS` 95–113 | rocks on water and coast |
 | 1597–1603 | conifer, 7 growth stages (replaces OpenGFX 0x63D) |
 | 1604–1610 | deciduous tree, 7 growth stages (replaces OpenGFX 0x644) |
 
@@ -52,6 +56,7 @@ your own OpenTTD config (needs the game built in `../build`):
 ```sh
 SEED=5 tools/ingame_shot.sh modern trees_4x       # -> shots/trees_4x.png
 SEED=1 tools/ingame_shot.sh modern rocks_4x keep  # leaves the window open
+SEED=2 tools/ingame_shot.sh water coast_4x        # high sea level: coast and coast rocks
 ```
 
 ## Style
@@ -59,5 +64,8 @@ SEED=1 tools/ingame_shot.sh modern rocks_4x keep  # leaves the window open
 `blender/style.py` reproduces the map study's lighting: base colour times
 `clamp(1 + gain·(N·L/L.z − 1), lo, hi)`, light from the study's direction.
 Ground textures repeat exactly once per tile so neighbouring tiles join
-seamlessly. Scatter objects (tufts, boulders) are real geometry placed on the
-slope surface and cut to the tile outline by the footprint mask.
+seamlessly. Shore tiles are coloured by height on the tile (water below 0.05
+levels, then foam, wet sand, beach, meadow), so they meet open water and grass
+without a seam. Water is static; OpenTTD's palette animation is not used.
+Scatter objects (tufts, boulders) are real geometry placed on the slope
+surface and cut to the tile outline by the footprint mask.

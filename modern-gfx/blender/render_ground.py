@@ -10,6 +10,12 @@ Kinds (each covers the 19 slope shapes in OpenTTD's order, see SPRITE_SLOPES):
   rough    4000  rough land; plus 4019-4022, four flat variants
   rocky1   4023  rocky land
   rocky2   4042  rocky land, second set (different boulder layout)
+Water kinds (output files are named after the sprite slot, not a base sprite):
+  water    4061      open water (sea, lakes, flat river), unshaded
+  shore    shore0-17 Action 5 COAST block; index -> slope as in DrawShoreTile()
+  river    river0-3  first four sprites of the Action 5 CANAL block: river slopes
+  coastrocks coastrock0-18  overlay rocks on water and coast (Action 5 OVERLAY_ROCKS,
+           offset 95), in slope order; rendered without the tile, which only occludes
 
 Styles: "calibration" is a lit 8x8 checker for checking geometry and seams;
 "modern" uses the textures from tools/make_ground_textures.py (render/textures)
@@ -53,6 +59,12 @@ KINDS = {
     "rocky2": (4042, "rocky", "rocks"),
 }
 ROUGH_FLAT_VARIANTS = (4019, 4020, 4021, 4022)
+WATER_KINDS = ("water", "shore", "river", "coastrocks")
+WET_ROCK_COLORS = ((112, 112, 108), (128, 126, 120), (100, 104, 104))
+# Shore sprite index -> slope (inverse of tileh_to_shoresprite in water_cmd.cpp).
+SHORE_SLOPES = (0x17, 1, 2, 3, 4, 0x1B, 6, 7, 8, 9, 0x1D, 11, 12, 13, 14, 0x1E, 5, 10)
+# Canal block 0-3: water flowing to -Y (SLOPE_SE), +X (SLOPE_NE), -X (SLOPE_SW), +Y (SLOPE_NW).
+RIVER_SLOPES = (6, 12, 3, 9)
 
 TUFT_COLORS = ((90, 150, 76), (116, 178, 82), (104, 164, 78), (186, 196, 104))
 SHRUB_COLOR = (78, 140, 92)
@@ -63,7 +75,7 @@ def parse_args():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     outdir = argv[0] if argv else os.path.join(os.getcwd(), "render", "ground")
     style = argv[argv.index("--style") + 1] if "--style" in argv else "modern"
-    kinds = argv[argv.index("--kinds") + 1].split(",") if "--kinds" in argv else list(KINDS)
+    kinds = argv[argv.index("--kinds") + 1].split(",") if "--kinds" in argv else list(KINDS) + list(WATER_KINDS)
     return outdir, style, kinds
 
 
@@ -71,6 +83,18 @@ def jobs(kinds):
     """(sprite, slope, kind, seed) for every sprite to render."""
     out = []
     for kind in kinds:
+        if kind == "water":
+            out.append((4061, 0, kind, 4061))
+            continue
+        if kind == "shore":
+            out += [(f"shore{i}", slope, kind, 5000 + i) for i, slope in enumerate(SHORE_SLOPES)]
+            continue
+        if kind == "river":
+            out += [(f"river{i}", slope, kind, 6000 + i) for i, slope in enumerate(RIVER_SLOPES)]
+            continue
+        if kind == "coastrocks":
+            out += [(f"coastrock{i}", slope, kind, 7000 + i) for i, slope in enumerate(oc.SPRITE_SLOPES)]
+            continue
         first = KINDS[kind][0]
         out += [(first + k, slope, kind, first + k) for k, slope in enumerate(oc.SPRITE_SLOPES)]
         if kind == "rough":
@@ -187,7 +211,14 @@ def add_shrubs(slope, rng, count, material):
         add_mesh(f"shrub{i}", bm, material, m)
 
 
-def add_rocks(slope, rng, count, materials):
+def add_foam_ring(x, y, z, r, material):
+    """Flat foam ring on the water surface around a rock."""
+    bm = bmesh.new()
+    bmesh.ops.create_circle(bm, cap_ends=True, segments=10, radius=r * 1.35)
+    add_mesh("foam", bm, material, Matrix.Translation((x, y, z + 0.002)))
+
+
+def add_rocks(slope, rng, count, materials, foam=None):
     placed = []
     for i in range(count * 4):
         if len(placed) >= count:
@@ -205,8 +236,58 @@ def add_rocks(slope, rng, count, materials):
         add_mesh(f"rock{i}", bm, rng.choice(materials), m)
 
 
+def holdout_material():
+    mat = bpy.data.materials.new("holdout")
+    mat.use_nodes = True
+    nt = mat.node_tree
+    nt.nodes.clear()
+    out = nt.nodes.new("ShaderNodeOutputMaterial")
+    nt.links.new(nt.nodes.new("ShaderNodeHoldout").outputs[0], out.inputs["Surface"])
+    return mat
+
+
+def foam_material():
+    """Half-transparent foam, after the map study's shoreline foam."""
+    mat = bpy.data.materials.new("foam")
+    mat.use_nodes = True
+    nt = mat.node_tree
+    nt.nodes.clear()
+    out = nt.nodes.new("ShaderNodeOutputMaterial")
+    em = nt.nodes.new("ShaderNodeEmission")
+    em.inputs["Color"].default_value = st.lin(st.FOAM_RGB)
+    mix = nt.nodes.new("ShaderNodeMixShader")
+    mix.inputs["Fac"].default_value = 0.5
+    nt.links.new(nt.nodes.new("ShaderNodeBsdfTransparent").outputs[0], mix.inputs[1])
+    nt.links.new(em.outputs[0], mix.inputs[2])
+    nt.links.new(mix.outputs[0], out.inputs["Surface"])
+    return mat
+
+
+def render_coast_rocks(outdir, name, slope, seed, zoom):
+    """Overlay: rocks only; the tile surface is a holdout so sunk parts stay hidden."""
+    size = 64 * zoom
+    scene = reset_scene()
+    oc.setup_camera(scene, zoom, size, size)
+    build_tile(slope, 1.0).data.materials.append(holdout_material())
+    rng = random.Random(seed)
+    mats = [st.toon_material(f"wetrock{i}", c) for i, c in enumerate(WET_ROCK_COLORS)]
+    add_rocks(slope, rng, rng.randint(3, 5), mats, foam=foam_material())
+    render(scene, os.path.join(outdir, f"z{zoom}", f"{name}_overlay.png"))
+
+
+def ground_material(kind):
+    tex = lambda name: os.path.join(TEXTURES, name + ".png")  # noqa: E731
+    if kind == "water":
+        return st.toon_material("water", image_path=tex("water"), params=st.FLAT)
+    if kind == "river":
+        return st.toon_material("river", image_path=tex("water"), params=st.GROUND)
+    if kind == "shore":
+        return st.shore_material(tex("water"), tex("sand"), tex("grass"))
+    return st.toon_material("ground", image_path=tex(KINDS[kind][1]), params=st.GROUND)
+
+
 def add_scatter(kind, slope, seed):
-    scatter = KINDS[kind][2]
+    scatter = KINDS[kind][2] if kind in KINDS else None
     rng = random.Random(seed)
     if scatter == "tufts":
         mats = [st.toon_material(f"tuft{i}", c) for i, c in enumerate(TUFT_COLORS)]
@@ -277,6 +358,11 @@ def main():
 
     masks = {}  # (slope, zoom) -> first rendered mask path; masks only depend on the slope
     for sprite, slope, kind, seed in jobs(kinds):
+        if kind == "coastrocks":
+            for zoom in ZOOMS:
+                render_coast_rocks(outdir, sprite, slope, seed, zoom)
+            print(f"rendered {kind} {sprite} slope {slope:#04x}", flush=True)
+            continue
         for zoom in ZOOMS:
             size = 64 * zoom
             zdir = os.path.join(outdir, f"z{zoom}")
@@ -286,8 +372,7 @@ def main():
             oc.setup_camera(scene, zoom, size, size)
             obj = build_tile(slope, COLOR_OVERSCAN)
             if style == "modern":
-                tex = os.path.join(TEXTURES, KINDS[kind][1] + ".png")
-                obj.data.materials.append(st.toon_material("ground", image_path=tex, params=st.GROUND))
+                obj.data.materials.append(ground_material(kind))
                 add_scatter(kind, slope, seed)
             else:
                 add_calibration_lighting(scene)
@@ -307,7 +392,7 @@ def main():
                 scene.cycles.filter_width = 0.01
                 render(scene, mask_path)
                 masks[slope, zoom] = mask_path
-        print(f"rendered {kind} sprite {sprite} slope {slope:#04x}", flush=True)
+        print(f"rendered {kind} {sprite} slope {slope:#04x}", flush=True)
 
 
 if __name__ == "__main__":
