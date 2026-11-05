@@ -56,6 +56,7 @@ Currently covered (all climates unless noted; trains and road vehicles still Ope
 | 4677–4789 | toyland industries: candyfloss forest (2072–2077, toyland only), sweet factory, battery farm, cola wells, toy shop, toy factory, plastic fountains, fizzy drink factory, bubble generator, toffee quarry, sugar mine, with the animated child sprites |
 | 3669–3700 | ships: oil tanker, cargo ship, passenger ferry, hovercraft, 8 directions each, company colour on hulls, bands and funnels; in toyland a toy cargo boat loaded with building blocks and a toy paddle steamer replace the cargo ship and ferry (see *Vehicles*) |
 | 3741–3900, 3901–3904 | aircraft: all 20 original sprite sets (piston and turboprop airliners, jets of all sizes, supersonic and futuristic types, two helicopters) and the helicopter rotor, 8 directions each, white with company-colour tails, bellies, cheatlines or bodies; in toyland six toy aircraft and a toy rotor replace 3741–3788 and 3901–3904 (see *Vehicles*) |
+| 2733–3072 | trains: every original engine (steam with boiler and tender, diesel hoods and boxes, electrics with pantographs, multiple units, high-speed power cars, monorail and maglev) and wagon, 8 directions or 4 for symmetric vehicles, wagons empty and loaded (coal, grain, logs, steel coils, paper reels, iron and copper ore, fruit, rubber); company colour on bodies, bands and tenders; in toyland toy engines and toy cargo wagons replace their sprites (see *Vehicles*) |
 
 Every sprite ships as 8bpp fallback plus 32bpp at 1x, 2x and 4x.
 
@@ -123,8 +124,11 @@ $B -b --factory-startup -P blender/render_airports.py -- render/airports   # [--
 .venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfxt_toyland.grf 401 416 ref/ships_toyland  # toyland 0xE5D-0xE6C
 .venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfx1_base.grf 3741 3904 ref/aircraft         # reference only
 .venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfxt_toyland.grf 341 392 ref/aircraft_toyland  # toyland 0xE9D-0xECC, rotors
-$B -b --factory-startup -P blender/render_vehicles.py -- render/vehicles   # [--only tanker,jumbo,rotor0] [--zooms 4 --dirs 3,6]
+.venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfx1_base.grf 2733 3072 ref/trains          # reference only
+.venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfxt_toyland.grf 761 884 ref/trains_toyland # toyland wagons and engines
+$B -b --factory-startup -P blender/render_vehicles.py -- render/vehicles   # [--only tanker,jumbo,rotor0 | trains] [--zooms 4 --dirs 3,6]
 .venv/bin/python tools/preview_vehicles.py render /tmp/ships.png 4   # placed as in game, next to OpenGFX
+.venv/bin/python tools/preview_vehicles.py render /tmp/trains.png 4 jubilee:ref/trains:2905:train w_coal_full:ref/trains:2781:train4   # three in a row on rails
 .venv/bin/python tools/check_calibration.py render/ground ref/ground
 .venv/bin/python tools/preview_tiling.py render/ground ref/ground render/preview_rocky_area.png rocky 2 12   # big area, variants as in game
 # toyland variants of the sprites with grass (GFX_GRASS=toy reads render/textures/toyland first, toy_grass for grass)
@@ -168,6 +172,8 @@ tools/ship_shot.sh ships_4x          # ShipTest digs a pond with a depot and buo
 CLIMATE=toyland tools/ship_shot.sh toyland_ships_4x
 tools/aircraft_shot.sh aircraft_4x   # AircraftTest: two airports, helistation, heliport, every aircraft (2060, never expire)
 CLIMATE=toyland tools/aircraft_shot.sh toyland_aircraft_4x              # YEAR=1960 for an earlier mix
+tools/train_shot.sh trains_4x        # TrainTest: rail, electric, monorail and maglev loops, every engine with wagons (2060)
+YEAR=1950 tools/train_shot.sh trains_1950_4x                            # CLIMATE=arctic|tropic|toyland for the others
 ```
 
 Most render scripts take `--only prefix,prefix` to re-render a subset.
@@ -417,6 +423,65 @@ so both helicopters carry their mast on the vehicle position and the rotor plane
 same height (`HM` in `aircraft.py`). The renderer builds rotors in the body's frame
 (type `rotor`, origin (-1, -1, 5), one direction); the packer composes each turning
 frame from faded blades over a faint disc (`rotor_disc`) with the hub on top.
+
+### Trains
+
+Trains (models in `blender/trains.py`) use the bounds of `Train::UpdateDeltaXY()` for
+the original length of 8 units: the sprite is drawn at `pos + (-1, -1)` in N/E/S/W and
+two units further back along the track in NE/SW and SE/NW (type `train`, 8 sprites, or
+`train4`, 4 sprites for symmetric vehicles, which the game draws with `direction & 3`).
+Each vehicle is centred on its position and 8 units long: bodies end at 3.7, buffers at
+3.95, so buffers meet at the vehicle spacing. On the corner-cutting pieces (N/E/S/W) a
+vehicle step moves one unit in x and y, so the renderer stretches the length by √2 there,
+as the original sprites do; consecutive vehicles then meet on every track piece. Wheels
+sit on the rails (gauge ±1.6 units as in `make_infra_textures.py`), bodies stay within
+±2.1 of the track centre (platform edges are 3 units away), floors are just above the
+platform top (z 2.1) and pantographs reach the contact wire at z 13
+(`render_catenary.py`). Monorail and maglev cars hang a skirt down over the beam or
+guideway. `tools/preview_vehicles.py` with `:train` / `:train4` draws three vehicles in
+a row on rails next to the OpenGFX ones.
+
+The sprite sets are `_engine_sprite_base` + direction (`table/train_sprites.h`); several
+engines share a set, multihead rear engines draw the front set turned round, and loaded
+wagons add `_wagon_full_adder` (a set of its own per load):
+
+| sprite | model | engines / wagons |
+|---|---|---|
+| 0xB59 | 4-6-0 tender engine | Chaney 'Jubilee', SH '8P' |
+| 0xB61 | streamlined pacific with wedge casing | Ginzu 'A4' |
+| 0xB69 | 0-6-0 side-tank engine | Kirby Paul Tank |
+| 0xB71 (4) | double-cab diesel | SH/Hendry '25', Floss '47' |
+| 0xB75 (4) | double-cab diesel with short noses | UU '37' |
+| 0xB79 (4) | box electric, two pantographs | SH '30', SH '40' |
+| 0xB7D | high-speed diesel power car | SH '125' (both ends) |
+| 0xB85 | 1960s diesel multiple unit car | Manley-Morel DMU |
+| 0xB8D | modern DMU car with rounded cab | 'Dash' |
+| 0xB95 | long-nosed bullet train power car | 'AsiaStar' |
+| 0xB9D | high-speed electric power car | 'T.I.M.' |
+| 0xBA5 (4) | symmetric monorail car | 'X2001' |
+| 0xBA9 | streamlined monorail cab car | 'Millennium Z1' |
+| 0xBB1, 0xBB9 | maglev cab cars, long noses | Lev3 'Pegasus', Lev4 'Chimaera' |
+| 0xBC1, 0xBC5 (4) | symmetric maglev cars (company-colour roof; headlight "eye") | Lev1 'Leviathan', Lev2 'Cyclops' |
+| 0xBC9, 0xBD1, 0xBD9 | road-switcher hood units, wide-cab ones | CS 2400, Centennial, CS 4000 |
+| 0xBE1 | 2-8-0 with cowcatcher, headlamp and bell | Wills 2-8-0 |
+| 0xBE9 (4) | centre-cab diesel | Kelling 3100 |
+| 0xBED | streamlined cab unit | Turner Turbo (both ends) |
+| 0xBF5 (4) | box-cab diesel | MJS 1000 |
+| 0xBF9 | small switcher, cab at the rear | MJS 250 |
+| 0xAAD–0xB0C | rail wagons: passenger, mail, coal, oil, livestock, goods, food, grain, wood, steel/paper flat, ore hopper, armoured, water, fruit, rubber (+ loaded sets) | all climates |
+| 0xB0D–0xB58 | monorail and maglev wagons: the same cargoes with rounded white bodies over a skirt | monorail and maglev |
+
+Some wagons share an empty set: the paper truck uses the steel flat wagon and the copper
+ore hopper the iron ore one, each with its own loaded set. The sub-tropic water, fruit and
+rubber wagons on monorail and maglev use the rail ones (engine table). Toyland's base
+graphics replace the passenger and toy cargo wagons (0xAAD–0xAB0, 0xAB5–0xB00) and seven
+engine sets, so a climate block replaces those again: three toy steam engines with fat
+boilers and flared funnels (Ploddyphut, Powernaut, Mightymover Choo-Choo), two bubble-cab
+toy diesels, a capsule monorail (Wizzowow Z99), a striped rocket maglev (Rocketeer), and
+wagons for sugar cubes, candyfloss, toffee, a glass van of bubbles, a cola barrel with
+froth, sweets and toys vans, batteries, fizzy drink bottles and plastic. Smoke, steam
+and sparks are effects (not drawn here); `trains.EFFECTS` lists the chimney tops,
+exhausts and pantograph heads in the model frame for lining them up.
 
 ## Trees
 
