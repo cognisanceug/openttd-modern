@@ -4,7 +4,7 @@ A NewGRF that replaces OpenGFX sprites with 32bpp graphics rendered in Blender,
 in the style of the "Schienenwerk" map study: isometric low-poly look, soft
 light without hard shadows. Gameplay is unchanged. Licence: GPL v2.
 
-Currently covered (temperate):
+Currently covered (temperate; trees in all climates):
 
 | Sprites   | Content |
 |-----------|---------|
@@ -28,7 +28,10 @@ Currently covered (temperate):
 | 1301–1308 | track fences: low-poly post-and-rail, flat, diagonal and sloped |
 | 1313–1350 | roads with pavements (towns) and with grass verges: 19 shapes each incl. slopes and dead ends |
 | 1370–1381 | level crossings, open and barred |
-| 1576–1715 | all 20 temperate tree bases × 7 growth stages (17 species; 0x6AD repeats the spruce like OpenGFX) |
+| 1576–1708 | temperate trees: 19 bases × 7 growth stages (cypress and poplar as slim columns of foliage lumps, dead cypress as a bare spire) |
+| 1709–1820 | sub-arctic trees: 8 species, and the same 8 with snow on every upward facet for above the snow line |
+| 1821–1946 | sub-tropical trees: 7 palms, 7 rainforest trees (pale bark, lianas), fern, agave, saguaro and barrel cactus |
+| 1947–2009 | toyland trees: spinning top, candyfloss, balloon, tyre stack, curly wire, mushroom, striped cone, lollipop, leaf pole |
 
 Every sprite ships as 8bpp fallback plus 32bpp at 1x, 2x and 4x.
 
@@ -56,7 +59,7 @@ B=/Applications/Blender.app/Contents/MacOS/Blender
 .venv/bin/python tools/bridge_usage.py ../src/table ref/bridges/usage.json
 tar -xf ~/Documents/OpenTTD/baseset/opengfx-8.0.tar -C ref
 .venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfx1_base.grf 3924 4060 ref/ground
-.venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfx1_base.grf 1576 1715 ref/trees
+.venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfx1_base.grf 1576 2009 ref/trees
 
 # textures, renders, checks, GRF
 .venv/bin/python tools/make_ground_textures.py render/textures
@@ -83,6 +86,9 @@ SEED=5 tools/ingame_shot.sh modern trees_4x       # -> shots/trees_4x.png
 SEED=1 tools/ingame_shot.sh modern rocks_4x keep  # leaves the window open
 SEED=2 tools/ingame_shot.sh water coast_4x        # high sea level: coast and coast rocks
 SEED=2 tools/ingame_shot.sh town town_4x          # many towns: foundations, and a river
+SEED=5 tools/ingame_shot.sh arctic arctic_4x      # sub-arctic: trees with and without snow
+SEED=5 tools/ingame_shot.sh tropic tropic_4x      # sub-tropical: palms, rainforest, cacti in the desert
+SEED=5 tools/ingame_shot.sh toyland toyland_4x    # toyland trees
 SEED=1 SIZE="4800 3200" tools/infra_shot.sh infra_4x   # InfraTest builds rails, roads, crossings, signals, depots, bridges, tunnels, stations, electrifies (start year 2000)
 ```
 
@@ -105,3 +111,21 @@ uses each sprite (head, or back/front/pillar of a section of a bridge family).
 Steel parts carry palette index 75 in a mask, inside the 70-79 range that the
 game's PALETTE_TO_STRUCT_* recolours remap, so shared sprites still appear
 oxide, yellow, red, brown, white or concrete-grey per bridge type.
+
+## Trees
+
+`blender/render_trees.py` builds every tree base of every climate from a few
+low-poly forms (crown, tiers, column, umbrella, layers, spindle, palm, fan,
+cactus, barrel; toyland objects have their own builders). The `SPECIES` table
+names form, colours per growth stage, dead style and bark for each base.
+Height and width of every growth stage come from the OpenGFX sprite it
+replaces (`ref/trees/meta.json`), so forests keep their density and skyline.
+The snowy sub-arctic set (0x6E5-0x716) is the plain set (0x6AD-0x6DE) plus
+snow: after the tree is built, its facets are subdivided once and every facet
+turns white with a probability that rises with how far it faces up. Palms and
+the toyland leaf pole use arching leaf blades with a raised midrib; leaning
+trunks lean to the screen's left as in OpenGFX. The burst toyland balloon
+(last stage of 0x7A9) is an empty sprite.
+Tree canvases are 64z × 112z px with the drawing origin at (31z, 80z), tall
+enough for the 76 px rainforest tree and palm. The other climates' ground is
+not covered yet: there the set's temperate ground replaces OpenGFX's too.
