@@ -24,6 +24,7 @@ recolour mask (white = company colour), plus <outdir>/meta.json.
   hover      3693-3700  Bakewell 300 hovercraft (image 3, 0xE6D)
   toycargo   3677-3684  Mightymover / Powernaut cargo ship (toyland replaces 0xE5D-0xE6C)
   toyferry   3685-3692  Chugger-Chug / Shivershake ferry
+  aircraft, helicopters and rotors: see aircraft.py (3741-3904)
 """
 
 import json
@@ -55,10 +56,14 @@ CC = {"cc", "cc_light", "cc_flat"}
 # Direction unit vectors in OpenTTD x/y (Direction enum order).
 DIRS = [(-1, -1), (-1, 0), (-1, 1), (0, 1), (1, 1), (1, 0), (1, -1), (0, -1)]
 
-# Per vehicle type: bounding box origin per direction (UpdateDeltaXY) and canvas (w, h, anchor row) in 1x px.
+# Per vehicle type: bounding box origin per direction (UpdateDeltaXY, x, y[, z]) and canvas (w, h, anchor row)
+# in 1x px; dirs=1 for sprites the game draws in every direction (the helicopter rotor).
 TYPES = {
     "ship": dict(origin=[(-3, -3), (-16, -3), (-3, -3), (-3, -16), (-3, -3), (-16, -3), (-3, -3), (-3, -16)],
                  canvas=(128, 96, 60)),
+    "aircraft": dict(origin=[(-1, -1)] * 8, canvas=(128, 80, 46)),
+    # The rotor vehicle is ROTOR_Z_OFFSET = 5 above the body; models are built in the body's frame.
+    "rotor": dict(origin=[(-1, -1, 5)], canvas=(48, 40, 26), dirs=1),
 }
 
 
@@ -372,6 +377,8 @@ MODELS = {
     "tanker": ("ship", tanker), "cargo": ("ship", cargo), "ferry": ("ship", ferry), "hover": ("ship", hover),
     "toycargo": ("ship", toycargo), "toyferry": ("ship", toyferry),
 }
+import aircraft  # noqa: E402  (after the palette above: the toy colours are shared)
+MODELS.update(aircraft.AIRCRAFT)
 
 
 # --- rendering ---------------------------------------------------------------------------------
@@ -392,15 +399,17 @@ def turned(parts, d):
     return out
 
 
-def render_model(outdir, name, kind, build, meta):
+def render_model(outdir, name, kind, build, meta, zooms=bk.ZOOMS, dirs=None):
     k = bk.Kit()
     build(k)
     spec = TYPES[kind]
     w, h, anchor = spec["canvas"]
-    for d in range(8):
+    for d in range(spec.get("dirs", 8)):
+        if dirs is not None and d not in dirs:
+            continue
         parts = turned(k.parts, d)
         sx, sy = remap(*spec["origin"][d])
-        for zoom in bk.ZOOMS:
+        for zoom in zooms:
             zdir = os.path.join(outdir, f"z{zoom}")
             os.makedirs(zdir, exist_ok=True)
             # Vehicle position = the N-corner point of the camera (canvas column w/2 - 1, row anchor at 1x).
@@ -419,13 +428,16 @@ def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     outdir = argv[0] if argv and not argv[0].startswith("--") else os.path.join(os.getcwd(), "render", "vehicles")
     only = set(argv[argv.index("--only") + 1].split(",")) if "--only" in argv else None
+    # Previews: --zooms 4 --dirs 2,5 render a subset.
+    zooms = [int(z) for z in argv[argv.index("--zooms") + 1].split(",")] if "--zooms" in argv else bk.ZOOMS
+    dirs = {int(d) for d in argv[argv.index("--dirs") + 1].split(",")} if "--dirs" in argv else None
     os.makedirs(outdir, exist_ok=True)
     meta_path = os.path.join(outdir, "meta.json")
     meta = json.load(open(meta_path)) if os.path.exists(meta_path) else {}
     for name, (kind, build) in MODELS.items():
         if only and name not in only:
             continue
-        render_model(outdir, name, kind, build, meta)
+        render_model(outdir, name, kind, build, meta, zooms, dirs)
         json.dump(meta, open(meta_path, "w"), indent=1, sort_keys=True)
 
 
