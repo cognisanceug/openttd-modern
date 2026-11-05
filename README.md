@@ -56,6 +56,7 @@ Currently covered (temperate; trees in all climates):
 | 4677–4789 | toyland industries: candyfloss forest (2072–2077, toyland only), sweet factory, battery farm, cola wells, toy shop, toy factory, plastic fountains, fizzy drink factory, bubble generator, toffee quarry, sugar mine, with the animated child sprites |
 | 3669–3700 | ships: oil tanker, cargo ship, passenger ferry, hovercraft, 8 directions each, company colour on hulls, bands and funnels; in toyland a toy cargo boat loaded with building blocks and a toy paddle steamer replace the cargo ship and ferry (see *Vehicles*) |
 | 3741–3900, 3901–3904 | aircraft: all 20 original sprite sets (piston and turboprop airliners, jets of all sizes, supersonic and futuristic types, two helicopters) and the helicopter rotor, 8 directions each, white with company-colour tails, bellies, cheatlines or bodies; in toyland six toy aircraft and a toy rotor replace 3741–3788 and 3901–3904 (see *Vehicles*) |
+| 3092–3667 | road vehicles: all 72 original sprite sets, 8 directions each: buses and lorries in three generations (1930s bonneted, 1970s cab-over, modern raked cab) for every cargo, loaded lorries with their load (coal, grain, ore heaps, logs, steel coils, paper rolls, fruit crates, latex drums), company colour on cabs, bus skirts and body stripes; in toyland 20 toy vehicles replace 3092–3251 (see *Vehicles*) |
 
 Every sprite ships as 8bpp fallback plus 32bpp at 1x, 2x and 4x.
 
@@ -124,7 +125,10 @@ $B -b --factory-startup -P blender/render_airports.py -- render/airports   # [--
 .venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfx1_base.grf 3741 3904 ref/aircraft         # reference only
 .venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfxt_toyland.grf 341 392 ref/aircraft_toyland  # toyland 0xE9D-0xECC, rotors
 $B -b --factory-startup -P blender/render_vehicles.py -- render/vehicles   # [--only tanker,jumbo,rotor0] [--zooms 4 --dirs 3,6]
+.venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfx1_base.grf 3092 3667 ref/roadveh          # reference only
+.venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfxt_toyland.grf 601 760 ref/roadveh_toyland  # toyland 0xC14-0xCB3
 .venv/bin/python tools/preview_vehicles.py render /tmp/ships.png 4   # placed as in game, next to OpenGFX
+.venv/bin/python tools/preview_vehicles.py render /tmp/rv.png 4 bus1:ref/roadveh:3284:road coal2_l:ref/roadveh:3188:road  # on a lane
 .venv/bin/python tools/check_calibration.py render/ground ref/ground
 .venv/bin/python tools/preview_tiling.py render/ground ref/ground render/preview_rocky_area.png rocky 2 12   # big area, variants as in game
 # toyland variants of the sprites with grass (GFX_GRASS=toy reads render/textures/toyland first, toy_grass for grass)
@@ -168,6 +172,8 @@ tools/ship_shot.sh ships_4x          # ShipTest digs a pond with a depot and buo
 CLIMATE=toyland tools/ship_shot.sh toyland_ships_4x
 tools/aircraft_shot.sh aircraft_4x   # AircraftTest: two airports, helistation, heliport, every aircraft (2060, never expire)
 CLIMATE=toyland tools/aircraft_shot.sh toyland_aircraft_4x              # YEAR=1960 for an earlier mix
+tools/road_shot.sh road_4x           # RoadTest: main road, depots, bus stops, a line per raw cargo, every road vehicle twice (1985)
+YEAR=2030 CLIMATE=toyland tools/road_shot.sh toyland_road_4x            # CLIMATE=arctic|tropic|toyland, YEAR=1950 for the first generation
 ```
 
 Most render scripts take `--only prefix,prefix` to re-render a subset.
@@ -412,6 +418,48 @@ so both helicopters carry their mast on the vehicle position and the rotor plane
 same height (`HM` in `aircraft.py`). The renderer builds rotors in the body's frame
 (type `rotor`, origin (-1, -1, 5), one direction); the packer composes each turning
 frame from faded blades over a faint disc (`rotor_disc`) with the hub on top.
+
+Road vehicles (models in `blender/road_vehicles.py`) are drawn at bounds origin + offset
+from `RoadVehicle::UpdateDeltaXY`: (-1, -1) for N/E/S/W, (-2, -1) for NE/SW, (-1, -2) for
+SE/NW. They drive at 5 and 9 across the tile (`roadveh_movement.h`, mirrored for the other
+driving side), while our road texture is centred on 8 with lanes ±1.85 wide (`ROAD_HALF` in
+`make_infra_textures.py`), so the renderer moves each model to (x + 1, y + 1): lane centres
+6 and 10 on either driving side, inside the bounding box (type `road`, `shift`). Every model
+is 7.8 units long (`VEHICLE_LENGTH` 8, no original road vehicle is articulated), 2.6 wide and
+about 8 height units high, a little above the depot door and below a two-storey house.
+
+The 72 sprite sets 0xC14–0xE4B are base + direction (`_roadveh_images` in
+`roadveh_cmd.cpp`); a lorry at least half full shows base + `_roadveh_full_adder`, so the
+loaded lorries are sets of their own. Models are a cab per generation on a cargo body:
+
+| generation | engines | cab |
+|---|---|---|
+| 1 (1929–1935) | MPS Regal Bus, Balogh, MPS, Witcombe, Talbott, Hereford, Foster, Uhl lorries | bonneted: rounded hood, chrome grille, round fenders and lamps, round roof; wooden bodies |
+| 2 (1964–1986) | Hereford Leopard and Foster Bus (one set), Uhl, Reynard, Foster, Craighead, Thomas, Perry lorries | boxy cab-over: flat front, deep windscreen, black grille, white roof cap; ribbed aluminium bodies |
+| 3 (2004–2022) | Foster MkII Superbus, DW, Perry, Goss, Moreland, Kelling, Chippy, MPS, RMT lorries | raked cab with light strips, roof deflector, side skirts, tandem rear axle; smooth white bodies with a company-colour stripe |
+
+| body | sets (gen 1 / 2 / 3) | empty → loaded |
+|---|---|---|
+| bus | 0xCD4 / 0xC14 / 0xD94 | bonneted two-tone bus / city bus with deep windscreen / low-floor bus with roof pods |
+| coal tipper | 0xCDC→0xD34 / 0xC1C→0xC74 / 0xD9C→0xDF4 | dark floor → coal heap |
+| grain tipper with tarpaulin bows | 0xD0C→0xD3C / 0xC4C→0xC7C / 0xDCC→0xDFC | → golden grain heap (wheat, maize) |
+| ore rock-dump body (iron ore and copper ore share the empty set) | 0xD24 / 0xC64 / 0xDE4 | → iron ore 0xD54 / 0xC94 / 0xE14, copper ore 0xD64 / 0xCA4 / 0xE24 |
+| stake body | 0xD14→0xD44 / 0xC54→0xC84 / 0xDD4→0xE04 | → stacked logs |
+| flatbed (steel and paper share the empty set) | 0xD1C / 0xC5C / 0xDDC | → steel coils 0xD4C / 0xC8C / 0xE0C, paper rolls 0xD5C / 0xC9C / 0xE1C |
+| open slatted body | 0xD74→0xD84 / 0xCB4→0xCC4 / 0xE34→0xE44 | → fruit crates |
+| low open body | 0xD7C→0xD8C / 0xCBC→0xCCC / 0xE3C→0xE4C | → latex drums (rubber) |
+| box vans | mail 0xCE4 / 0xC24 / 0xDA4, goods 0xCFC / 0xC3C / 0xDBC, food 0xD04 / 0xC44 / 0xDC4, armoured 0xD2C / 0xC6C / 0xDEC | one set each: company-colour mail van with a yellow stripe, goods box (curtain-sider in gen 3), refrigerated van with a cooling unit, armoured van with slit windows |
+| tankers | oil 0xCEC / 0xC2C / 0xDAC, water 0xD6C / 0xCAC / 0xE2C | one set each: tank with company-colour rings, catwalk and domes |
+| livestock | 0xCF4 / 0xC34 / 0xDB4 | one set: slatted body, cattle between the slats |
+
+Toyland's base graphics load its 20 sets into 0xC14–0xCB3 (all three generations of a
+toyland lorry share one set), so a climate block replaces them again with toy vehicles: a
+round cab with big lamps and a roof beacon, fat wheels with yellow hubs, bright bodies —
+a loaf-shaped bus with round windows; tippers loaded with sugar cubes, wrapped toffee and
+candyfloss; flatbeds loaded with cola bottles, batteries, fizzy drink cans, plastic drums
+and bubbles; a toy van with a teddy on the roof, a mail van with an envelope and a sweet van
+with a giant lollipop. Cabs, the toy bus body and the toy mail panels carry the company
+colour.
 
 ## Trees
 

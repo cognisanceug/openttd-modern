@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Preview vehicle sprites placed as the game draws them, next to the OpenGFX originals.
 
-Usage: preview_vehicles.py <render-dir> <out.png> <zoom> [name:ref_dir:first_sprite ...]
+Usage: preview_vehicles.py <render-dir> <out.png> <zoom> [name:ref_dir:first_sprite[:road] ...]
 
 Per vehicle two rows of 8 directions over a sea of tiles: our sprite (packed as
 pack_vehicles.py does) and the OpenGFX sprite scaled to the zoom. The vehicle
-sits on a tile centre, the red line is its path, the cross its position.
+sits on a tile centre, the red line is its path, the cross its position. With
+:road the vehicle drives on grass in its lane (grey, 3.7 units wide around the
+lane centre one unit right and below the position, see TYPES in render_vehicles.py).
 """
 
 import json
@@ -18,6 +20,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pack_vehicles as pv  # noqa: E402
 
 SHIP_ORIGIN = [(-3, -3), (-16, -3), (-3, -3), (-3, -16), (-3, -3), (-16, -3), (-3, -3), (-3, -16)]
+ROAD_ORIGIN = [(-1, -1), (-2, -1), (-1, -1), (-1, -2), (-1, -1), (-2, -1), (-1, -1), (-1, -2)]
+GRASS, LANE = (118, 150, 92, 255), (120, 124, 128, 255)
 DIRS = [(-1, -1), (-1, 0), (-1, 1), (0, 1), (1, 1), (1, 0), (1, -1), (0, -1)]
 WATER, GRID = (70, 140, 170, 255), (96, 162, 190, 255)
 
@@ -36,11 +40,17 @@ def tint(im, cc, rgb=(60, 110, 200)):
     return out
 
 
-def cell(zoom, draw_sprite, d):
-    w, h = 150 * zoom, 96 * zoom
-    im = Image.new("RGBA", (w, h), WATER)
+def cell(zoom, draw_sprite, d, road=False):
+    w, h = (64 * zoom, 44 * zoom) if road else (150 * zoom, 96 * zoom)
+    im = Image.new("RGBA", (w, h), GRASS if road else WATER)
     dr = ImageDraw.Draw(im)
-    vx, vy = w // 2, 52 * zoom
+    vx, vy = w // 2, (26 if road else 52) * zoom
+    if road:
+        dx, dy = DIRS[d]
+        n = (-dy, dx) if dx * dy == 0 else (0, 0)
+        pts = [remap(1 + dx * s * 30 + n[0] * t, 1 + dy * s * 30 + n[1] * t) for s, t in ((-1, -1.85), (1, -1.85), (1, 1.85), (-1, 1.85))]
+        if n != (0, 0):
+            dr.polygon([(vx + p[0] * zoom, vy + p[1] * zoom) for p in pts], fill=LANE)
     for t in range(-3, 4):
         for a, b in (((t * 16 - 8, -56), (t * 16 - 8, 40)), ((-56, t * 16 - 8), (40, t * 16 - 8))):
             p, q = remap(*a), remap(*b)
@@ -49,7 +59,7 @@ def cell(zoom, draw_sprite, d):
     p, q = remap(-dx * 24, -dy * 24), remap(dx * 24, dy * 24)
     dr.line([(vx + p[0] * zoom, vy + p[1] * zoom), (vx + q[0] * zoom, vy + q[1] * zoom)], fill=(200, 60, 60, 255), width=zoom)
     sp, xo, yo = draw_sprite(d)
-    ox, oy = remap(*SHIP_ORIGIN[d])
+    ox, oy = remap(*(ROAD_ORIGIN if road else SHIP_ORIGIN)[d])
     im.alpha_composite(sp, (vx + ox * zoom + xo, vy + oy * zoom + yo))
     dr.line([(vx - 3 * zoom, vy), (vx + 3 * zoom, vy)], fill=(255, 40, 40, 255), width=max(1, zoom // 2))
     dr.line([(vx, vy - 3 * zoom), (vx, vy + 3 * zoom)], fill=(255, 40, 40, 255), width=max(1, zoom // 2))
@@ -64,7 +74,8 @@ def main():
     meta = json.load(open(os.path.join(veh_dir, "meta.json")))
     rows = []
     for spec in specs:
-        name, ref_dir, first = spec.split(":")
+        name, ref_dir, first, *kind = spec.split(":")
+        road = kind == ["road"]
         if f"{name}_d0_z{zoom}" not in meta:
             continue
 
@@ -72,15 +83,16 @@ def main():
             im, x, y, cc = pv.vehicle_sprite(veh_dir, name, d, zoom, meta)
             return tint(im, cc), x, y
 
-        ref_meta = json.load(open(os.path.join(ref_dir, "meta.json")))
+        ref_meta = json.load(open(os.path.join(ref_dir, "meta.json"))) if ref_dir != "-" else {}
 
         def ref(d):
             n = str(int(first) + d)
             im = Image.open(os.path.join(ref_dir, f"{n}.png")).convert("RGBA")
             im = im.resize((im.width * zoom, im.height * zoom), Image.NEAREST)
             return im, ref_meta[n]["x"] * zoom, ref_meta[n]["y"] * zoom
-        rows.append([cell(zoom, ours, d) for d in range(8)])
-        rows.append([cell(zoom, ref, d) for d in range(8)])
+        rows.append([cell(zoom, ours, d, road) for d in range(8)])
+        if ref_dir != "-":
+            rows.append([cell(zoom, ref, d, road) for d in range(8)])
     cw, ch = rows[0][0].size
     sheet = Image.new("RGBA", (cw * 8, ch * len(rows)))
     for r, row in enumerate(rows):

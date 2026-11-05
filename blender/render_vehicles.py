@@ -25,6 +25,7 @@ recolour mask (white = company colour), plus <outdir>/meta.json.
   toycargo   3677-3684  Mightymover / Powernaut cargo ship (toyland replaces 0xE5D-0xE6C)
   toyferry   3685-3692  Chugger-Chug / Shivershake ferry
   aircraft, helicopters and rotors: see aircraft.py (3741-3904)
+  road vehicles: see road_vehicles.py (3092-3667)
 """
 
 import json
@@ -57,13 +58,20 @@ CC = {"cc", "cc_light", "cc_flat"}
 DIRS = [(-1, -1), (-1, 0), (-1, 1), (0, 1), (1, 1), (1, 0), (1, -1), (0, -1)]
 
 # Per vehicle type: bounding box origin per direction (UpdateDeltaXY, x, y[, z]) and canvas (w, h, anchor row)
-# in 1x px; dirs=1 for sprites the game draws in every direction (the helicopter rotor).
+# in 1x px; dirs=1 for sprites the game draws in every direction (the helicopter rotor); shift moves
+# the model off the vehicle position in x/y units.
 TYPES = {
     "ship": dict(origin=[(-3, -3), (-16, -3), (-3, -3), (-3, -16), (-3, -3), (-16, -3), (-3, -3), (-3, -16)],
                  canvas=(128, 96, 60)),
     "aircraft": dict(origin=[(-1, -1)] * 8, canvas=(128, 80, 46)),
     # The rotor vehicle is ROTOR_Z_OFFSET = 5 above the body; models are built in the body's frame.
     "rotor": dict(origin=[(-1, -1, 5)], canvas=(48, 40, 26), dirs=1),
+    # Road vehicles (RoadVehicle::UpdateDeltaXY): the sprite is drawn at bounds origin + offset, (-1, -1)
+    # for N/E/S/W, (-2, -1) for NE/SW, (-1, -2) for SE/NW. Lanes run at 5 and 9 across the tile (both
+    # driving sides, roadveh_movement.h); the road texture is centred on 8, so the model sits at
+    # (x + 1, y + 1): lane centres 6 and 10, the bounding box (-3..5 along, -1..2 across) around it.
+    "road": dict(origin=[(-1, -1), (-2, -1), (-1, -1), (-1, -2), (-1, -1), (-2, -1), (-1, -1), (-1, -2)],
+                 canvas=(64, 52, 34), shift=(1, 1)),
 }
 
 
@@ -379,6 +387,8 @@ MODELS = {
 }
 import aircraft  # noqa: E402  (after the palette above: the toy colours are shared)
 MODELS.update(aircraft.AIRCRAFT)
+import road_vehicles  # noqa: E402
+MODELS.update(road_vehicles.ROAD)
 
 
 # --- rendering ---------------------------------------------------------------------------------
@@ -404,6 +414,7 @@ def render_model(outdir, name, kind, build, meta, zooms=bk.ZOOMS, dirs=None):
     build(k)
     spec = TYPES[kind]
     w, h, anchor = spec["canvas"]
+    shift = tuple(-v for v in spec.get("shift", (0, 0)))
     for d in range(spec.get("dirs", 8)):
         if dirs is not None and d not in dirs:
             continue
@@ -414,11 +425,11 @@ def render_model(outdir, name, kind, build, meta, zooms=bk.ZOOMS, dirs=None):
             os.makedirs(zdir, exist_ok=True)
             # Vehicle position = the N-corner point of the camera (canvas column w/2 - 1, row anchor at 1x).
             scene = bk.new_scene(zoom, w, h, anchor)
-            bk.link_parts(parts, (0, 0), bk.Materials("color"))
+            bk.link_parts(parts, shift, bk.Materials("color"))
             bk.render(scene, os.path.join(zdir, f"{name}_d{d}.png"))
             scene = bk.new_scene(zoom, w, h, anchor, samples=8)
             scene.cycles.filter_width = 0.01
-            bk.link_parts(parts, (0, 0), bk.Materials("cc", CC))
+            bk.link_parts(parts, shift, bk.Materials("cc", CC))
             bk.render(scene, os.path.join(zdir, f"{name}_d{d}_cc.png"))
             meta[f"{name}_d{d}_z{zoom}"] = [(w // 2 - 1 + sx) * zoom, (anchor + sy) * zoom]
         print(f"rendered {name} d{d}", flush=True)
