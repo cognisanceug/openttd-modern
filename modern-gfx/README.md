@@ -54,6 +54,8 @@ Currently covered (temperate; trees in all climates):
 | 2011–2183, 2293–2340 | temperate industries: coal mine, power station, sawmill, forest, oil refinery, factory, printing works, steel mill, farm, oil wells, bank, iron ore mine; all construction stages and animation frames |
 | 2026–2039, 2184–2292, 2341–2364 | sub-arctic and sub-tropical industries: copper ore mine, food processing plant, paper mill, gold mine, bank, diamond mine, fruit and rubber plantations, water supply, water tower, lumber mill; the snowy forest (2072–2077, sub-arctic only) and the oil wells' sandy ground (2173, sub-tropical only) |
 | 4677–4789 | toyland industries: candyfloss forest (2072–2077, toyland only), sweet factory, battery farm, cola wells, toy shop, toy factory, plastic fountains, fizzy drink factory, bubble generator, toffee quarry, sugar mine, with the animated child sprites |
+| 3669–3700 | ships: oil tanker, cargo ship, passenger ferry, hovercraft, 8 directions each, company colour on hulls, bands and funnels; in toyland a toy cargo boat loaded with building blocks and a toy paddle steamer replace the cargo ship and ferry (see *Vehicles*) |
+| 3741–3900, 3901–3904 | aircraft: all 20 original sprite sets (piston and turboprop airliners, jets of all sizes, supersonic and futuristic types, two helicopters) and the helicopter rotor, 8 directions each, white with company-colour tails, bellies, cheatlines or bodies; in toyland six toy aircraft and a toy rotor replace 3741–3788 and 3901–3904 (see *Vehicles*) |
 
 Every sprite ships as 8bpp fallback plus 32bpp at 1x, 2x and 4x.
 
@@ -117,6 +119,12 @@ $B -b --factory-startup -P blender/render_industries.py -- render/industries   #
 for c in arctic tropic toyland; do $B -b --factory-startup -P blender/render_industries.py -- render/industries_$c --climate $c; done
 .venv/bin/python tools/make_airport_textures.py render/textures render/textures/airport 512   # needs numpy
 $B -b --factory-startup -P blender/render_airports.py -- render/airports   # [--only b2651,g2645,rig] [--part k/n]
+.venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfx1_base.grf 3669 3700 ref/ships            # reference only
+.venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfxt_toyland.grf 401 416 ref/ships_toyland  # toyland 0xE5D-0xE6C
+.venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfx1_base.grf 3741 3904 ref/aircraft         # reference only
+.venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfxt_toyland.grf 341 392 ref/aircraft_toyland  # toyland 0xE9D-0xECC, rotors
+$B -b --factory-startup -P blender/render_vehicles.py -- render/vehicles   # [--only tanker,jumbo,rotor0] [--zooms 4 --dirs 3,6]
+.venv/bin/python tools/preview_vehicles.py render /tmp/ships.png 4   # placed as in game, next to OpenGFX
 .venv/bin/python tools/check_calibration.py render/ground ref/ground
 .venv/bin/python tools/preview_tiling.py render/ground ref/ground render/preview_rocky_area.png rocky 2 12   # big area, variants as in game
 # toyland variants of the sprites with grass (GFX_GRASS=toy reads render/textures/toyland first, toy_grass for grass)
@@ -156,6 +164,10 @@ CLIMATE=arctic tools/industry_shot.sh industry_arctic_4x   # the same in sub-arc
 tools/airport_shot.sh airport_4x     # AirportTest builds every airport type, docks in four directions, buoys and an oil rig
 CLIMATE=toyland CFG=infra_future tools/infra_shot.sh toyland_infra_4x   # CLIMATE= generates any of the above in another climate
 CLIMATE=toyland tools/airport_shot.sh toyland_airport_4x                # (toyland: rails, roads, tunnels, airports on the toyland meadow)
+tools/ship_shot.sh ships_4x          # ShipTest digs a pond with a depot and buoys and buys every ship twice (1990, never expire)
+CLIMATE=toyland tools/ship_shot.sh toyland_ships_4x
+tools/aircraft_shot.sh aircraft_4x   # AircraftTest: two airports, helistation, heliport, every aircraft (2060, never expire)
+CLIMATE=toyland tools/aircraft_shot.sh toyland_aircraft_4x              # YEAR=1960 for an earlier mix
 ```
 
 Most render scripts take `--only prefix,prefix` to re-render a subset.
@@ -333,6 +345,73 @@ from sprite 693, which is also the toolbar icon. The oil rig is modelled once ov
 its 2×3 tiles; as in the original only the three tiles of the x = 1 row draw it,
 each the screen-column slice x − y ≥ 16, 0–16 or < 0 of the model, so the slices
 meet without overlap. The helideck sits where helicopters land (31, 9, z 54).
+
+## Vehicles
+
+`blender/render_vehicles.py` builds each vehicle once from the kit, in vehicle units
+(bow towards +a, z up from the vehicle's z_pos, for ships the water line), and turns it
+to the 8 directions of the `Direction` enum (sprite = base + direction). The game draws
+a vehicle sprite at `RemapCoords(pos + bounds.origin)`, where `bounds` is set per
+direction in `UpdateDeltaXY()` (ships: (-16, -3) along x, (-3, -16) along y, (-3, -3)
+diagonally); the renders put the vehicle position at a fixed canvas point and
+`render/vehicles/meta.json` stores the canvas pixel of that sprite origin per direction
+and zoom, so `tools/pack_vehicles.py` gets the offsets from the crop box. Ships sit on
+their path: hull centred on the vehicle position, water line at z_pos (the OpenGFX
+sprites along the x axis are a few pixels off their path). Other vehicle types only
+need their bounds and canvas in `TYPES` and models in `MODELS`.
+
+Ships use four base sprite sets (`_ship_sprites` in `ship_cmd.cpp`): tanker 0xE55,
+cargo ship 0xE5D, ferry 0xE65, hovercraft 0xE6D; the two engines of each kind share
+one. Toyland's base graphics load their own cargo ship and ferry into 0xE5D–0xE6C, so a
+climate block replaces them again with the toy models (a red tub with building blocks
+and a toy wheelhouse; a paddle steamer with striped funnels). Hulls, hull bands and
+funnel bands carry the company-colour mask (index 202). Ships have no cast shadow:
+the same sprites are drawn in the depot and vehicle windows.
+
+Aircraft (models in `blender/aircraft.py`) have the bounds origin (-1, -1) in every
+direction and stand on z_pos = ground + 1, so their wheels touch z = -1. The 20 sprite
+sets are 0xE9D–0xF3C (`_aircraft_sprite` in `aircraft_cmd.cpp`); most are shared by
+several engines, so each model stands for a type rather than one engine:
+
+| sprite | model | engines |
+|---|---|---|
+| 0xE9D | high-wing regional jet, four engines, T-tail | Bakewell Luckett LB-8, Yate Aerospace YAe46 |
+| 0xEA5 | wide-body with upper-deck hump, four engines | Darwin 300 |
+| 0xEAD | supersonic delta with drooped nose | Yate Haugan |
+| 0xEB5 | four-propeller airliner, triple fin | Coleman Count |
+| 0xEBD | corrugated trimotor with spatted wheels | Sampson U52 |
+| 0xEC5 | short-haul jet, rear engines, T-tail | FFP Dart, Bakewell Luckett LB-9 / LB80, YAC 1-11, Darwin 100, Dinger 100 |
+| 0xECD | wide-body trijet, third engine in the fin | Bakewell Luckett LB-10 / LB-11, Guru Galaxy |
+| 0xED5 | wide-body twinjet | Darwin 200–600, Airtaxi A21–A33 |
+| 0xEDD | four-propeller low-wing airliner | Bakewell Cotswald LB-3 |
+| 0xEE5 | light helicopter, skids | Tricario Helicopter |
+| 0xEED | small supersonic transport, canards, canted fins | FFP Hyperdart 2 |
+| 0xEF5 | blended wing body, three engines on top | Dinger 200 |
+| 0xEFD | hypersonic needle with aft delta | Dinger 1000 |
+| 0xF05 | high-wing shuttle with ducted pusher fans | Yate Z-Shuttle |
+| 0xF0D | flying-wing air taxi | AirTaxi A34-1000 |
+| 0xF15 | canard jet, forward-swept wing, V-tail | Kelling K6 |
+| 0xF1D | box wing | Kelling K7 |
+| 0xF25 | truss-braced high wing | Darwin 700 |
+| 0xF2D | electric commuter with six props | Kelling K1 |
+| 0xF35 | twin-engined helicopter, shrouded tail rotor | Guru X2 Helicopter |
+
+Toyland's base graphics load six toy aircraft into 0xE9D–0xECC and their own rotor, so a
+climate block replaces them with a toy biplane (Ploddyphut 100), a chubby high-wing twin
+(Ploddyphut 500), a toy jet (Flashbang X1), a fat jumbo with a rainbow fin (Juggerplane
+M1), a rocket plane (Flashbang Wizzer) and a bubble helicopter (Powernaut).
+
+The shadow of an aircraft is not a sprite of its own: the game draws the aircraft
+sprite again on the ground (bounds origin 0, so 3 px below the parked aircraft) with
+the transparent palette, which in 32bpp darkens the ground by a quarter under the
+sprite's alpha. It therefore follows the new silhouettes without extra sprites.
+
+The helicopter rotor (3901 stopped, 3902–3904 turning) is a separate vehicle 5 height
+units above the body (`ROTOR_Z_OFFSET`), drawn with the same sprite in every direction,
+so both helicopters carry their mast on the vehicle position and the rotor plane at the
+same height (`HM` in `aircraft.py`). The renderer builds rotors in the body's frame
+(type `rotor`, origin (-1, -1, 5), one direction); the packer composes each turning
+frame from faded blades over a faint disc (`rotor_disc`) with the hub on top.
 
 ## Trees
 
