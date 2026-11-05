@@ -198,7 +198,8 @@ class Kit:
         a0, a1, b0, b1 = (y0, y1, x0, x1) if axis == "x" else (x0, x1, y0, y1)
         am = (a0 + a1) / 2
         slope = (zr - ze) / (am - a0)
-        self.extrude([(a0, ze), (am, zr), (a1, ze)], axis, b0, b1, wall)
+        # The gable wall stays below the roof's top surface (coplanar faces would flicker).
+        self.extrude([(a0, ze - 0.05), (am, zr - thick * 0.8), (a1, ze - 0.05)], axis, b0, b1, wall)
         lo = ze - slope * over
         self.extrude([(a0 - over, lo), (am, zr), (a1 + over, lo), (a1 + over, lo - thick),
                       (am, zr - thick), (a0 - over, lo - thick)], axis, b0 - over * 0.6, b1 + over * 0.6, roof)
@@ -311,8 +312,8 @@ def scaffold(k, foot, top):
             z += 6
 
 
-def clip_parts(parts, x0=None, x1=None, y0=None, y1=None, ztop=None):
-    """Cut every solid at the given planes, dropping what lies outside; a cut top is closed."""
+def clip_parts(parts, x0=None, x1=None, y0=None, y1=None, ztop=None, close_top=True):
+    """Cut every solid at the given planes, dropping what lies outside; a cut top is closed unless close_top is False."""
     planes = []
     if x0 is not None:
         planes.append(((x0, 0, 0), (1, 0, 0), False))
@@ -323,7 +324,7 @@ def clip_parts(parts, x0=None, x1=None, y0=None, y1=None, ztop=None):
     if y1 is not None:
         planes.append(((0, y1, 0), (0, -1, 0), False))
     if ztop is not None:
-        planes.append(((0, 0, ztop), (0, 0, -1), True))
+        planes.append(((0, 0, ztop), (0, 0, -1), close_top))
     out = []
     for mat, bm in parts:
         bm = bm.copy()
@@ -347,7 +348,7 @@ def staged(k, model, stage, foot, final_stage=2):
     model(k)
     if stage < final_stage:
         top = k.top() * 0.45
-        k.parts = clip_parts(k.parts, ztop=top)
+        k.parts = clip_parts(k.parts, ztop=top, close_top=False)  # open shells read as unfinished walls
         for x0, y0, x1, y1 in foot:
             k.box(x0 - 0.2, x1 + 0.2, y0 - 0.2, y1 + 0.2, 0, 0.6, "concrete")
         scaffold(k, foot, top)
