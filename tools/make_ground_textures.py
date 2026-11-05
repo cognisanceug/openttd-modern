@@ -9,6 +9,8 @@ meets its neighbours without a seam. Colours follow the map study:
   grass23  bare soil with grass on ~2/3 of the area
   rough    darker, patchier meadow (low-poly tufts are added in Blender)
   rocky    meadow with gravel patches (low-poly boulders are added in Blender)
+  water    the study's mid-depth water blue, nearly uniform
+  sand     beach sand #E2D098 for the shores
 The grass-growth stages share one coverage field, so grass regrows in place.
 Low-frequency variation stays gentle because one sprite repeats on every tile.
 
@@ -29,6 +31,10 @@ SOIL = (150, 114, 80)
 SOIL_DARK = (122, 90, 62)
 SOIL_LIGHT = (172, 138, 100)
 GRAVEL = (156, 152, 140)
+WATER = (64, 142, 174)
+WATER_DEEP = (48, 118, 156)
+SAND = (226, 208, 152)
+SAND_DARK = (208, 188, 134)
 
 
 def periodic_noise(size, freq, rng):
@@ -143,6 +149,30 @@ def main():
         return mix(c, g, k)
 
     save(rocky, size, os.path.join(outdir, "rocky.png"))
+
+    # Water: the map study's mid-depth blue, kept almost uniform because the
+    # same tile repeats over whole seas.
+    rng4 = random.Random(2468)
+    swell = periodic_noise(size, 3, rng4)
+    swell2 = periodic_noise(size, 7, rng4)
+    ripple = periodic_noise(size, 40, rng4)
+
+    def water(x, y):
+        c = mix(WATER, WATER_DEEP, smoothstep(0.35, 0.75, 0.6 * swell[y][x] + 0.4 * swell2[y][x]) * 0.12)
+        g = 1.0 + (ripple[y][x] - 0.5) * 0.03
+        return [v * g for v in c]
+
+    save(water, size, os.path.join(outdir, "water.png"))
+
+    sand_n = periodic_noise(size, 9, rng4)
+    sand_grain = periodic_noise(size, 140, rng4)
+
+    def sand(x, y):
+        c = mix(SAND, SAND_DARK, smoothstep(0.5, 0.75, sand_n[y][x]) * 0.5)
+        g = 1.0 + (sand_grain[y][x] - 0.5) * 0.1
+        return [v * g for v in c]
+
+    save(sand, size, os.path.join(outdir, "sand.png"))
 
 
 if __name__ == "__main__":

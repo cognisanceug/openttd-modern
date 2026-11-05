@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Verify the Blender camera calibration against OpenTTD's tile raster.
 
-For every ground sprite that was rendered (3924-4060, see render_ground.py)
+For every ground and water sprite that was rendered (see render_ground.py)
 and every zoom level the rendered footprint mask is checked
   1. against the analytic projection (point-in-triangle at pixel centres),
   2. for its crop box: width 64z, height z*(h1+1)-1, top row = anchor + z*yoffs1x,
@@ -28,10 +28,23 @@ GROUND_BASES = (3924, 3943, 3962, 3981, 4000, 4023, 4042)
 ROUGH_FLAT_VARIANTS = (4019, 4020, 4021, 4022)
 
 
+SHORE_SLOPES = (0x17, 1, 2, 3, 4, 0x1B, 6, 7, 8, 9, 0x1D, 11, 12, 13, 14, 0x1E, 5, 10)
+RIVER_SLOPES = (6, 12, 3, 9)
+
+
 def ground_sprites():
-    """(sprite, slope) for all temperate ground sprites."""
-    out = [(b + k, s) for b in GROUND_BASES for k, s in enumerate(SPRITE_SLOPES)]
-    return sorted(out + [(s, 0) for s in ROUGH_FLAT_VARIANTS])
+    """(name, slope, reference sprite, compare pixels with OpenGFX) for all ground and water sprites.
+
+    Water sprites (open water, shores, river slopes) take their expected crop box
+    from the grass sprite of the same slope; their OpenGFX art differs too much to compare pixels.
+    """
+    out = [(b + k, s, b + k, True) for b in GROUND_BASES for k, s in enumerate(SPRITE_SLOPES)]
+    out += [(s, 0, s, True) for s in ROUGH_FLAT_VARIANTS]
+    grass = lambda slope: 3981 + SPRITE_SLOPES.index(slope)  # noqa: E731
+    out += [(4061, 0, grass(0), False)]
+    out += [(f"shore{i}", s, grass(s), False) for i, s in enumerate(SHORE_SLOPES)]
+    out += [(f"river{i}", s, grass(s), False) for i, s in enumerate(RIVER_SLOPES)]
+    return out
 
 
 def corner_levels(slope):
@@ -89,10 +102,10 @@ def main():
     failures = 0
     report = {}
     analytic = {}
-    for sprite, slope in ground_sprites():
+    for sprite, slope, ref_sprite, compare in ground_sprites():
         if not os.path.exists(os.path.join(render_dir, "z1", f"{sprite}_mask.png")):
             continue
-        ref = ref_meta[str(sprite)]
+        ref = ref_meta[str(ref_sprite)]
         for zoom in (1, 2, 4):
             mask = load_mask(os.path.join(render_dir, f"z{zoom}", f"{sprite}_mask.png"))
             if (slope, zoom) not in analytic:
@@ -103,7 +116,7 @@ def main():
             exp = (0, ANCHOR_Y * zoom + zoom * ref["y"], 64 * zoom, zoom * (ref["h"] + 1) - 1)
             box_ok = (left, top, w, h) == exp
             diff_ref = None
-            if zoom == 1:
+            if zoom == 1 and compare:
                 rim = Image.open(os.path.join(ref_dir, f"{sprite}_mask.png")).load()
                 diff_ref = sum(
                     mask[top + y][left + x] != (rim[x, y] > 0)
@@ -116,7 +129,7 @@ def main():
                 diff_analytic=diff_ana, diff_opengfx=diff_ref, ok=ok)
             print(f"{sprite} slope {slope:#04x} {zoom}x  box {w}x{h}@({left},{top}) "
                   f"{'=' if box_ok else '!='} {exp[2]}x{exp[3]}@({exp[0]},{exp[1]})  "
-                  f"analytic diff {diff_ana}" + (f"  OpenGFX diff {diff_ref}" if zoom == 1 else "")
+                  f"analytic diff {diff_ana}" + (f"  OpenGFX diff {diff_ref}" if diff_ref is not None else "")
                   + ("" if ok else "  <-- FAIL"))
     json.dump(report, open(os.path.join(render_dir, "calibration_report.json"), "w"), indent=1)
     print(f"\n{len(report) - failures}/{len(report)} checks passed")
