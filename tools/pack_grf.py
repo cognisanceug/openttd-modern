@@ -37,6 +37,13 @@ is tinted and faded to the map study's soft shadow, the tree
 (<sprite>_tree.png) is laid over it, and the result is cropped to its
 bounding box. The drawing origin sits at canvas pixel (31z, 64z).
 
+Water animation (tools/water_anim.py): open water, shores and river slopes
+carry a mask of animated palette indices (dark water 245-249, glitter
+250-254) on a ripple pattern, so the 32bpp-anim blitters keep OpenTTD's
+palette animation; the rest of the water keeps its rendered colour.
+
+Canals, locks, aqueducts and ship depots: see canal_blocks().
+
 Each block gets an 8bpp fallback (DOS palette) plus 32bpp sprites at 1x, 2x, 4x.
 
 Bridges 2437-2580 (rail and road) carry a structure recolour mask (index 75 in
@@ -73,6 +80,8 @@ import sys
 
 from nml.palette import raw_palette_data
 from PIL import Image
+
+import water_anim
 
 ZOOMS = (1, 2, 4)
 GAP = 8
@@ -275,7 +284,9 @@ def sheet_block(name, header, labels, sprites_by_zoom, gfx_dir, mask_index=COMPA
     """Write sheets for one replace block; returns NML text.
 
     header is the NML block head with {name} and {file} placeholders, labels
-    the comment per sprite.
+    the comment per sprite. Sprites with a fourth element carry a mask: masked
+    pixels get mask_index, or with mask_index=None the mask's own value
+    (palette indices, e.g. the animated water colours).
     """
     zoom_const = {1: "ZOOM_LEVEL_NORMAL", 2: "ZOOM_LEVEL_IN_2X", 4: "ZOOM_LEVEL_IN_4X"}
     parts = []
@@ -292,18 +303,24 @@ def sheet_block(name, header, labels, sprites_by_zoom, gfx_dir, mask_index=COMPA
             sheet.paste(im, (k * cell, 0))
             if has_mask:
                 mask_sheet.paste(sp[3], (k * cell, 0))
-            lines.append(f"    [{k * cell:5d}, 0, {im.width:3d}, {im.height:3d}, {xo:4d}, {yo:4d}]  // {labels[k]}")
+            flags = ", ANIM" if mask_index is None else ""  # animated palette colours are intended
+            lines.append(f"    [{k * cell:5d}, 0, {im.width:3d}, {im.height:3d}, {xo:4d}, {yo:4d}{flags}]  // {labels[k]}")
         sheet.save(os.path.join(gfx_dir, f"{name}_z{zoom}.png"))
         mask_arg = ""
         if has_mask:
             pal = Image.new("P", size, 0)
             pal.putpalette(raw_palette_data[0])
-            pal.paste(mask_index, mask=mask_sheet)
+            if mask_index is None:
+                pal.paste(mask_sheet)  # the mask holds the palette indices themselves
+            else:
+                pal.paste(mask_index, mask=mask_sheet)
             pal.save(os.path.join(gfx_dir, f"{name}_z{zoom}_mask.png"))
             mask_arg = f', "gfx/{name}_z{zoom}_mask.png"'
         if zoom == 1:
             eight = to_8bpp(sheet)
-            if has_mask:
+            if has_mask and mask_index is None:
+                eight.paste(mask_sheet, mask=mask_sheet.point(lambda v: 255 if v else 0))
+            elif has_mask:
                 # Company colours in the 8bpp fallback, shaded by the rendered grey.
                 grey = sheet.convert("L").load()
                 m, e = mask_sheet.load(), eight.load()
@@ -318,6 +335,44 @@ def sheet_block(name, header, labels, sprites_by_zoom, gfx_dir, mask_index=COMPA
         parts += [f'alternative_sprites({name}, {zoom_const[zoom]}, BIT_DEPTH_32BPP, "gfx/{name}_z{zoom}.png"{mask_arg}) {{',
                   *lines, "}", ""]
     return "\n".join(parts)
+
+
+def canal_blocks(render_dir, ground_dir, gfx_dir):
+    """Canals, locks and ship depots; returns NML text.
+
+    OpenGFX defines canal water, locks and dikes as canal-feature items, so ours
+    are items too: WF_WATERCLIFFS reuses the animated river slopes (flat water
+    first), WF_DIKES the 12 canal edge pieces (cut like river banks), WF_LOCKS
+    the 24 lock wall sprites (render/canals, origin (95, 80)). Ship depots
+    4070-4075 replace the base sprites; 4070-4073 carry a company-colour mask.
+    Aqueducts (render/aqueducts, origin (47, 72) like the bridges) replace the
+    Action 5 AQUEDUCTS block, with the water animation in the trough.
+    """
+    canal_dir = os.path.join(render_dir, "canals")
+    nml = ["item(FEAT_CANALS, canal_water_item, WF_WATERCLIFFS) {\n"
+           "    property { graphic_flags: 1; }  // first sprite is flat water\n"
+           "    graphics { river_slopes; }\n}\n"]
+    dikes = {z: [bank_sprite(ground_dir, f"dike{k}", 0, z) for k in range(12)] for z in ZOOMS}
+    nml.append(sheet_block("canal_dikes", "spriteset({name}, {file})", [f"dike{k}" for k in range(12)], dikes, gfx_dir))
+    nml.append("item(FEAT_CANALS, canal_dike_item, WF_DIKES) {\n    graphics { canal_dikes; }\n}\n")
+    locks = {z: [overlay_sprite(canal_dir, f"lock{k}", z, origin=(95, 80)) for k in range(24)] for z in ZOOMS}
+    nml.append(sheet_block("canal_locks", "spriteset({name}, {file})", [f"lock{k}" for k in range(24)], locks, gfx_dir))
+    nml.append("item(FEAT_CANALS, canal_lock_item, WF_LOCKS) {\n    graphics { canal_locks; }\n}\n")
+
+    def depot(n, z):
+        if n in (4074, 4075):
+            sp = overlay_sprite(canal_dir, f"depot{n}", z, origin=(95, 80))
+            return sp + (Image.new("L", sp[0].size, 0),)
+        return overlay_sprite(canal_dir, f"depot{n}", z, origin=(95, 80), cc=True)
+
+    nml.append(sheet_block("ship_depots", "replace {name}(4070, {file})", list(range(4070, 4076)),
+                           {z: [depot(n, z) for n in range(4070, 4076)] for z in ZOOMS}, gfx_dir))
+    aq_dir = os.path.join(render_dir, "aqueducts")
+    aqueducts = {z: [water_anim.animate(overlay_sprite(aq_dir, f"aq{k}", z, origin=(47, 72)), z) for k in range(8)]
+                 for z in ZOOMS}
+    nml.append(sheet_block("aqueducts", "replacenew {name}(AQUEDUCTS, {file})", [f"aq{k}" for k in range(8)],
+                           aqueducts, gfx_dir, mask_index=None))
+    return "\n".join(nml)
 
 
 def main():
@@ -349,13 +404,15 @@ def main():
                                [first + k for k in range(count)], tiles, gfx_dir))
     for name, header, items in WATER_BLOCKS:
         refs = [meta[str(3981 + SPRITE_SLOPES.index(slope))] for _, slope in items]
-        tiles = {z: [ground_sprite(ground_dir, n, z, ref) for (n, _), ref in zip(items, refs)] for z in ZOOMS}
-        nml.append(sheet_block(name, header, [n for n, _ in items], tiles, gfx_dir))
+        tiles = {z: [water_anim.animate(ground_sprite(ground_dir, n, z, ref), z) for (n, _), ref in zip(items, refs)]
+                 for z in ZOOMS}
+        nml.append(sheet_block(name, header, [n for n, _ in items], tiles, gfx_dir, mask_index=None))
     # Rivers: our own canal-feature definitions replace OpenGFX's.
     slope_items = [(4061, 0)] + [(f"river{i}", sl) for i, sl in enumerate(RIVER_SLOPES)]
-    tiles = {z: [ground_sprite(ground_dir, n, z, meta[str(3981 + SPRITE_SLOPES.index(sl))]) for n, sl in slope_items]
-             for z in ZOOMS}
-    nml.append(sheet_block("river_slopes", "spriteset({name}, {file})", [n for n, _ in slope_items], tiles, gfx_dir))
+    tiles = {z: [water_anim.animate(ground_sprite(ground_dir, n, z, meta[str(3981 + SPRITE_SLOPES.index(sl))]), z)
+                 for n, sl in slope_items] for z in ZOOMS}
+    nml.append(sheet_block("river_slopes", "spriteset({name}, {file})", [n for n, _ in slope_items], tiles, gfx_dir,
+                           mask_index=None))
     nml.append("item(FEAT_CANALS, river_slope_item, WF_RIVER_SLOPE) {\n"
                "    property { graphic_flags: 1; }  // first sprite is flat water\n"
                "    graphics { river_slopes; }\n}\n")
@@ -364,6 +421,7 @@ def main():
     nml.append(sheet_block("river_banks", "spriteset({name}, {file})", [n for n, _ in banks], pieces, gfx_dir))
     nml.append("item(FEAT_CANALS, river_bank_item, WF_RIVERBANKS) {\n"
                "    graphics { river_banks; }\n}\n")
+    nml.append(canal_blocks(render_dir, ground_dir, gfx_dir))
     names = [f"coastrock{k}" for k in range(len(SPRITE_SLOPES))]
     rocks = {z: [overlay_sprite(ground_dir, n, z) for n in names] for z in ZOOMS}
     nml.append(sheet_block("water_coast_rocks", f"replacenew {{name}}(OVERLAY_ROCKS, {{file}}, {COAST_ROCKS_OFFSET})",

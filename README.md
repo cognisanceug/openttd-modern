@@ -13,6 +13,9 @@ Currently covered (temperate):
 | Action 5 `COAST_TILES_DIAGONAL` | all 18 shore shapes: water, foam line, beach, meadow by height |
 | `FEAT_CANALS` `WF_RIVER_SLOPE`, `WF_RIVERBANKS` | rivers: flat water + 4 slopes, and 60 bank pieces (sides, outer/inner corners, flat and sloped); our own definitions replace OpenGFX's |
 | Action 5 `OVERLAY_ROCKS` 95–113 | rocks on water and coast |
+| `FEAT_CANALS` `WF_WATERCLIFFS`, `WF_DIKES`, `WF_LOCKS` | canals: water (the river slopes, flat first), 12 quay edge pieces (meadow, light coping, wall face on the far sides), 24 lock walls (chamber one level above the upper water, mitre gates open in the walls, balance beams, bollards); our own definitions replace OpenGFX's |
+| Action 5 `AQUEDUCTS` | aqueducts: stone trough with water on arched spandrels, abutments on the slope, piers |
+| 4070–4075 | ship depot: boathouse over two water tiles with gable roof, windows, company-colour eaves band |
 | 990–1003, Action 5 `FOUNDATIONS_SLOPES_HALFTILES` | all foundations: leveled, inclined, halftile; stone walls, coping on back edges |
 | 1005–1036 | rails: straight, short pieces, cross, junction grounds and single overlays, 12 slopes, double pieces |
 | 1063–1068, 1408–1413 | rail and road depots (shed with gable roof, garage with roller door); company-colour eaves band via recolour mask |
@@ -75,6 +78,8 @@ $B -b --factory-startup -P blender/render_stations.py -- render/stations
 $B -b --factory-startup -P blender/render_catenary.py -- render/catenary
 $B -b --factory-startup -P blender/render_bridges.py -- render/bridges   # needs ref/bridges/usage.json
 $B -b --factory-startup -P blender/render_houses.py -- render/houses     # --part k/n splits it over processes
+$B -b --factory-startup -P blender/render_canals.py -- render/canals     # locks and ship depots
+$B -b --factory-startup -P blender/render_aqueducts.py -- render/aqueducts
 .venv/bin/python tools/check_calibration.py render/ground ref/ground
 .venv/bin/python tools/pack_grf.py render ref/ground nml
 ```
@@ -87,6 +92,7 @@ SEED=5 tools/ingame_shot.sh modern trees_4x       # -> shots/trees_4x.png
 SEED=1 tools/ingame_shot.sh modern rocks_4x keep  # leaves the window open
 SEED=2 tools/ingame_shot.sh water coast_4x        # high sea level: coast and coast rocks
 SEED=2 tools/ingame_shot.sh town town_4x          # many towns (start year 2000): houses, foundations, and a river
+SEED=1 tools/water_shot.sh canals_4x            # WaterTest builds a canal ring, two ship depots, four locks and an aqueduct
 SEED=1 SIZE="4800 3200" tools/infra_shot.sh infra_4x   # InfraTest builds rails, roads, crossings, signals, depots, bridges, tunnels, stations, electrifies (start year 2000)
 ```
 
@@ -97,7 +103,22 @@ SEED=1 SIZE="4800 3200" tools/infra_shot.sh infra_4x   # InfraTest builds rails,
 Ground textures repeat exactly once per tile so neighbouring tiles join
 seamlessly. Shore tiles are coloured by height on the tile (water below 0.05
 levels, then foam, wet sand, beach, meadow), so they meet open water and grass
-without a seam. Water is static; OpenTTD's palette animation is not used.
+without a seam.
+
+Water keeps OpenTTD's palette animation (tools/water_anim.py). A 32bpp sprite
+can carry an 8bpp mask; where the mask holds an animated palette index, the
+32bpp-anim blitters draw that palette colour, scaled by the pixel's brightness
+max(r, g, b) / 128, and the colour cycles with the palette (dark water
+245–249, glittery water 250–254). Only the brightness is ours, the hue is the
+palette's, so not the whole surface is animated: a ripple pattern of short
+wave crests in dark-water indices (their phase falls across each crest, so the
+light band travels) and a sprinkle of glitter pixels, each fitted to the
+rendered colour's brightness; the rest keeps the rendered RGB. The pattern is
+periodic in tile coordinates, so seas, shores, rivers, canals and aqueduct
+troughs join without seams. `water_anim.py <render/ground> <ref/ground> out.gif`
+simulates the cycle for a patch of sea. Desert and snow shores do not exist in
+OpenTTD: DrawShoreTile() uses the one COAST block in every climate, so for the
+other climates the meadow on our shores would need a climate switch.
 Scatter objects (tufts, boulders) are real geometry placed on the slope
 surface and cut to the tile outline by the footprint mask. Rails and roads
 are drawn as tile-space textures (tools/make_infra_textures.py: ballast,
