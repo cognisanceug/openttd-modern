@@ -22,7 +22,7 @@ Currently covered (all climates unless noted; trains and road vehicles still Ope
 | Action 5 `AQUEDUCTS` | aqueducts: stone trough with water on arched spandrels, abutments on the slope, piers |
 | 4070–4075 | ship depot: boathouse over two water tiles with gable roof, windows, company-colour eaves band |
 | 990–1003, Action 5 `FOUNDATIONS_SLOPES_HALFTILES` | all foundations: leveled, inclined, halftile; stone walls, coping on back edges |
-| 1005–1036 | rails: straight, short pieces, cross, junction grounds (ballast beds of the tracks a junction can hold, grass in the corners) and single overlays, 12 slopes, double pieces |
+| 1005–1036 | rails: straight, short pieces, cross, junction grounds (ballast beds of the tracks a junction can hold, grass in the corners) and single overlays, 12 slopes, double pieces. The short corner pieces lay their rails, sleepers and ballast at the gauge measured along the tile edge they cross, so they meet straight pieces and each other at the same points |
 | 1087–1118, 1169–1200, 1382–1405 | monorail (one steel rail on a concrete beam with ties) and maglev (wide concrete guideway, two guide rails, reaction rail) in the rail layout, and their level crossings |
 | 1145–1168, 1227–1250 | monorail and maglev depots and stations: the rail renders (they hold no track) |
 | 2373–2388, 2581–2592, 4324–4403 | monorail and maglev tunnel portals and the bridge sprites only they use (decks with their guideway) |
@@ -149,6 +149,7 @@ SEED=2 tools/ingame_shot.sh water coast_4x        # high sea level: coast and co
 SEED=2 tools/ingame_shot.sh town town_4x          # many towns (start year 2000): houses, foundations, and a river
 SEED=1 tools/water_shot.sh canals_4x            # WaterTest builds a canal ring, two ship depots, four locks and an aqueduct
 SEED=1 SIZE="4800 3200" CFG=infra_future tools/infra_shot.sh guideway_4x   # 2090: also monorail and maglev
+CFG=rail_join SIZE="8000 4400" tools/infra_shot.sh rail_join   # RailJoinTest: zigzags of straight and corner pieces in every orientation, junctions, corner pieces on slopes
 SEED=1 SIZE="4800 3200" tools/infra_shot.sh infra_4x   # InfraTest builds rails, roads, one-way roads, crossings, signals, depots, bridges, tunnels, stations, electrifies (start year 2000)
 SEED=5 tools/ingame_shot.sh arctic arctic_4x      # sub-arctic: snow ground, trees with and without snow
 SEED=5 tools/ingame_shot.sh tropic tropic_4x      # sub-tropical: desert ground, palms, rainforest, cacti
