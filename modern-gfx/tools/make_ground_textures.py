@@ -12,6 +12,7 @@ meets its neighbours without a seam. Colours follow the map study:
   water    the study's mid-depth water blue, nearly uniform
   sand     beach sand #E2D098 for the shores
   stone    dressed stone courses for foundation walls (U per tile, V per height level)
+  riverbank0-11  RGBA river bank pieces (sides, outer and inner corners), see make_river_banks()
 The grass-growth stages share one coverage field, so grass regrows in place.
 Low-frequency variation stays gentle because one sprite repeats on every tile.
 
@@ -199,6 +200,62 @@ def main():
         return [v_ * g * edge for v_ in c]
 
     save(stone, size, os.path.join(outdir, "stone.png"))
+
+    make_river_banks(outdir, size, grass, sand)
+
+
+# River bank pieces in OpenTTD's RiverEdge order: sides NE, SE, SW, NW; outer
+# corners E, S, W, N (both neighbouring sides land); inner corners E, S, W, N
+# (only the diagonal neighbour is land). Distances in tile units, tile -0.5..0.5.
+def _bank_distance(piece, x, y):
+    side = {"NE": 0.5 - y, "SE": 0.5 - x, "SW": y + 0.5, "NW": x + 0.5}
+    pairs = {"E": ("NE", "SE"), "S": ("SE", "SW"), "W": ("SW", "NW"), "N": ("NW", "NE")}
+    points = {"E": (0.5, 0.5), "S": (0.5, -0.5), "W": (-0.5, -0.5), "N": (-0.5, 0.5)}
+    kind, name = piece
+    if kind == "side":
+        return side[name]
+    if kind == "outer":
+        # Only the corner square where both sides' banks overlap; coloured by the nearer side.
+        a, b = pairs[name]
+        return BANK_WIDTH if max(side[a], side[b]) >= BANK_WIDTH else min(side[a], side[b])
+    px, py = points[name]
+    return ((x - px) ** 2 + (y - py) ** 2) ** 0.5
+
+
+BANK_PIECES = ([("side", s) for s in ("NE", "SE", "SW", "NW")]
+               + [("outer", c) for c in ("E", "S", "W", "N")]
+               + [("inner", c) for c in ("E", "S", "W", "N")])
+BANK_WIDTH = 0.19
+FOAM = (240, 252, 250)
+WET_SAND = (196, 176, 126)
+
+
+def _bank_rgba(d, grass_c, sand_c):
+    """Bank profile from the land edge (d = 0) towards the water: meadow, sand, wet sand, foam."""
+    if d >= BANK_WIDTH:
+        return None
+    c = mix(grass_c, sand_c, smoothstep(0.03, 0.07, d))
+    c = mix(c, WET_SAND, smoothstep(0.10, 0.14, d))
+    c = mix(c, FOAM, smoothstep(0.14, 0.155, d) * 0.6)
+    a = 1.0 - smoothstep(0.15, BANK_WIDTH, d) * 1.0
+    return [*c, a]
+
+
+def make_river_banks(outdir, size, grass, sand):
+    """RGBA bank pieces in tile space; same pixel mapping as the world-XY textures."""
+    for k, piece in enumerate(BANK_PIECES):
+        img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+        px = img.load()
+        for j in range(size):
+            y = 0.5 - (j + 0.5) / size
+            for i in range(size):
+                x = (i + 0.5) / size - 0.5
+                d = _bank_distance(piece, x, y)
+                rgba = _bank_rgba(d, grass(i, j), sand(i, j))
+                if rgba:
+                    px[i, j] = tuple(max(0, min(255, int(round(v)))) for v in rgba[:3]) + (int(round(rgba[3] * 255)),)
+        img.save(os.path.join(outdir, f"riverbank{k}.png"))
+    print(f"wrote {len(BANK_PIECES)} river bank pieces")
 
 
 if __name__ == "__main__":
