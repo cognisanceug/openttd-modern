@@ -18,6 +18,8 @@ Currently covered (temperate):
 | 1063–1068, 1408–1413 | rail and road depots (shed with gable roof, garage with roller door); company-colour eaves band via recolour mask |
 | 1275–1290, Action 5 `PRE_SIGNAL_SEMAPHORE_PBS` | all signals: light and semaphore; block, entry, exit, combo, path, one-way path; 8 directions, red/green |
 | 2634      | concrete (road depot floor, airport apron) |
+| 2437–2580 | rail and road bridges of all 13 types: heads, decks, superstructures per section, pillars; steel recolour mask keeps the per-type colours |
+| 2365–2372, 2389–2396 | rail and road tunnel portals: stone portal with round arch under a grassy mound |
 | 1301–1308 | track fences: low-poly post-and-rail, flat, diagonal and sloped |
 | 1313–1350 | roads with pavements (towns) and with grass verges: 19 shapes each incl. slopes and dead ends |
 | 1370–1381 | level crossings, open and barred |
@@ -45,7 +47,8 @@ Requires Blender 4.5 (`brew install --cask blender`) and NML in a venv:
 python3 -m venv .venv && .venv/bin/pip install nml numpy
 B=/Applications/Blender.app/Contents/MacOS/Blender
 
-# reference data from OpenGFX (offsets, sizes, masks)
+# reference data from OpenGFX (offsets, sizes, masks) and the bridge sprite usage map
+.venv/bin/python tools/bridge_usage.py ../src/table ref/bridges/usage.json
 tar -xf ~/Documents/OpenTTD/baseset/opengfx-8.0.tar -C ref
 .venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfx1_base.grf 3924 4060 ref/ground
 .venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfx1_base.grf 1576 1715 ref/trees
@@ -59,6 +62,8 @@ $B -b --factory-startup -P blender/render_foundations.py -- render/foundations
 $B -b --factory-startup -P blender/render_fences.py -- render/fences
 $B -b --factory-startup -P blender/render_signals.py -- render/signals
 $B -b --factory-startup -P blender/render_depots.py -- render/depots
+$B -b --factory-startup -P blender/render_tunnels.py -- render/tunnels
+$B -b --factory-startup -P blender/render_bridges.py -- render/bridges   # needs ref/bridges/usage.json
 .venv/bin/python tools/check_calibration.py render/ground ref/ground
 .venv/bin/python tools/pack_grf.py render ref/ground nml
 ```
@@ -71,7 +76,7 @@ SEED=5 tools/ingame_shot.sh modern trees_4x       # -> shots/trees_4x.png
 SEED=1 tools/ingame_shot.sh modern rocks_4x keep  # leaves the window open
 SEED=2 tools/ingame_shot.sh water coast_4x        # high sea level: coast and coast rocks
 SEED=2 tools/ingame_shot.sh town town_4x          # many towns: foundations, and a river
-SEED=1 tools/infra_shot.sh infra_4x               # InfraTest game script builds rails, roads, crossings, signals, depots
+SEED=1 SIZE="4800 3200" tools/infra_shot.sh infra_4x   # InfraTest builds rails, roads, crossings, signals, depots, bridges, tunnels
 ```
 
 ## Style
@@ -87,3 +92,9 @@ surface and cut to the tile outline by the footprint mask. Rails and roads
 are drawn as tile-space textures (tools/make_infra_textures.py: ballast,
 sleepers, rails; asphalt, kerbs, lane markings) and laid on the flat or
 sloped tile in Blender, so slopes and tile joins stay exact.
+
+Bridges are built from the map tools/bridge_usage.py makes of of how table/bridge_land.h
+uses each sprite (head, or back/front/pillar of a section of a bridge family).
+Steel parts carry palette index 75 in a mask, inside the 70-79 range that the
+game's PALETTE_TO_STRUCT_* recolours remap, so shared sprites still appear
+oxide, yellow, red, brown, white or concrete-grey per bridge type.

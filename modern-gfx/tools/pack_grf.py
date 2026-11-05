@@ -39,8 +39,13 @@ bounding box. The drawing origin sits at canvas pixel (31z, 64z).
 
 Each block gets an 8bpp fallback (DOS palette) plus 32bpp sprites at 1x, 2x, 4x.
 
+Bridges 2437-2580 (rail and road) carry a structure recolour mask (index 75 in
+the 70-79 range PALETTE_TO_STRUCT_* remaps) so every bridge type keeps its
+colour. Tunnels 2365-2372 and 2389-2396: ground sprites are the slope tile with
+the portal laid over it, front sprites are cropped overlays.
+
 Usage: pack_grf.py <render-dir> <ref/ground> <nml-dir>
-  (render-dir holds ground/, trees/, foundations/, fences/, signals/, depots/)
+  (render-dir holds ground/, trees/, foundations/, fences/, signals/, depots/, bridges/, tunnels/)
 """
 
 import json
@@ -153,6 +158,17 @@ def bank_sprite(render_dir, name, slope, zoom):
     return im.crop(box), box[0] - 31 * zoom, box[1] - GROUND_ANCHOR_Y * zoom
 
 
+def tunnel_ground_sprite(render_dir, sprite, zoom):
+    """Tunnel ground sprite: the slope tile (cut by its mask) with the 3D portal parts laid over it."""
+    d = os.path.join(render_dir, f"z{zoom}")
+    tile = Image.open(os.path.join(d, f"tun{sprite}_ground_color.png")).convert("RGBA")
+    mask = Image.open(os.path.join(d, f"tun{sprite}_ground_mask.png")).convert("RGBA").getchannel("A")
+    tile.putalpha(mask.point(lambda a: 255 if a >= 128 else 0))
+    tile.alpha_composite(Image.open(os.path.join(d, f"tun{sprite}_overlay.png")).convert("RGBA"))
+    box = tile.getchannel("A").getbbox()
+    return tile.crop(box), box[0] - 47 * zoom, box[1] - 56 * zoom
+
+
 def tree_sprite(render_dir, sprite, zoom):
     tree = Image.open(os.path.join(render_dir, f"z{zoom}", f"{sprite}_tree.png")).convert("RGBA")
     catcher = Image.open(os.path.join(render_dir, f"z{zoom}", f"{sprite}_shadow.png")).convert("RGBA")
@@ -170,7 +186,10 @@ def tree_sprite(render_dir, sprite, zoom):
 COMPANY_INDEX = 202  # middle of the company-colour range 198-205
 
 
-def sheet_block(name, header, labels, sprites_by_zoom, gfx_dir):
+STRUCT_INDEX = 75  # middle of the structure colour range 70-79 that PALETTE_TO_STRUCT_* recolour
+
+
+def sheet_block(name, header, labels, sprites_by_zoom, gfx_dir, mask_index=COMPANY_INDEX):
     """Write sheets for one replace block; returns NML text.
 
     header is the NML block head with {name} and {file} placeholders, labels
@@ -197,7 +216,7 @@ def sheet_block(name, header, labels, sprites_by_zoom, gfx_dir):
         if has_mask:
             pal = Image.new("P", size, 0)
             pal.putpalette(raw_palette_data[0])
-            pal.paste(COMPANY_INDEX, mask=mask_sheet)
+            pal.paste(mask_index, mask=mask_sheet)
             pal.save(os.path.join(gfx_dir, f"{name}_z{zoom}_mask.png"))
             mask_arg = f', "gfx/{name}_z{zoom}_mask.png"'
         if zoom == 1:
@@ -209,7 +228,8 @@ def sheet_block(name, header, labels, sprites_by_zoom, gfx_dir):
                 for yy in range(size[1]):
                     for xx in range(size[0]):
                         if m[xx, yy]:
-                            e[xx, yy] = 198 + max(0, min(7, round(grey[xx, yy] / 128 * 4)))
+                            first = mask_index - 4  # shade within the 8 colours around the index
+                            e[xx, yy] = first + max(0, min(7, round(grey[xx, yy] / 128 * 4)))
             eight.save(os.path.join(gfx_dir, f"{name}_z1_8bpp.png"))
             head = header.format(name=name, file=f'"gfx/{name}_z1_8bpp.png"')
             parts += [head + " {", *lines, "}", ""]
@@ -222,6 +242,7 @@ def main():
     render_dir, ref_dir, nml_dir = sys.argv[1:4]
     ground_dir, trees_dir, found_dir, fence_dir, signal_dir, depot_dir = (
         os.path.join(render_dir, d) for d in ("ground", "trees", "foundations", "fences", "signals", "depots"))
+    bridge_dir, tunnel_dir = os.path.join(render_dir, "bridges"), os.path.join(render_dir, "tunnels")
     meta = json.load(open(os.path.join(ref_dir, "meta.json")))
     gfx_dir = os.path.join(nml_dir, "gfx")
     os.makedirs(gfx_dir, exist_ok=True)
@@ -299,6 +320,17 @@ def main():
     nml.append(sheet_block("road_depots", "replace {name}(1408, {file})", list(range(1408, 1414)), depots, gfx_dir))
     apron = {z: [ground_sprite(ground_dir, "apron2634", z, grass_meta(0))] for z in ZOOMS}
     nml.append(sheet_block("concrete", "replace {name}(2634, {file})", [2634], apron, gfx_dir))
+    # Bridges: rail and road sprites 2437-2580 with the structure recolour mask.
+    bridges = {z: [overlay_sprite(bridge_dir, f"br{n}", z, origin=(47, 72), cc=True) for n in range(2437, 2581)]
+               for z in ZOOMS}
+    nml.append(sheet_block("bridges", "replace {name}(2437, {file})", list(range(2437, 2581)), bridges, gfx_dir,
+                           mask_index=STRUCT_INDEX))
+    # Tunnels: per direction a ground sprite (tile + portal) and a front sprite.
+    for name, first in (("tunnels_rail", 2365), ("tunnels_road", 2389)):
+        tun = {z: [tunnel_ground_sprite(tunnel_dir, first + k, z) if k % 2 == 0
+                   else overlay_sprite(tunnel_dir, f"tun{first + k}", z, origin=(47, 56)) for k in range(8)]
+               for z in ZOOMS}
+        nml.append(sheet_block(name, f"replace {{name}}({first}, {{file}})", list(range(first, first + 8)), tun, gfx_dir))
     fences = {z: [overlay_sprite(fence_dir, f"fence{n}", z) for n in range(1301, 1309)] for z in ZOOMS}
     nml.append(sheet_block("track_fences", "replace {name}(1301, {file})", list(range(1301, 1309)), fences, gfx_dir))
     for name, header, names in (
@@ -317,7 +349,7 @@ def main():
     open(os.path.join(nml_dir, "lang", "english.lng"), "w").write(
         "##grflangid 0x01\n"
         "STR_GRF_NAME :Modern Terrain\n"
-        "STR_GRF_DESC :32bpp temperate ground, water and shores, foundations, trees, rails, roads, signals and depots rendered in Blender. Licence: GPL v2.\n"
+        "STR_GRF_DESC :32bpp temperate ground, water and shores, foundations, trees, rails, roads, signals, depots, bridges and tunnels rendered in Blender. Licence: GPL v2.\n"
     )
     nmlc = os.path.join(os.path.dirname(sys.executable), "nmlc")
     subprocess.run([nmlc, "-c", "--grf", "modern_terrain.grf", "modern_terrain.nml"], cwd=nml_dir, check=True)

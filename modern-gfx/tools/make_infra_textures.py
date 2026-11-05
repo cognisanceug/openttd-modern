@@ -18,6 +18,7 @@ Written to <outdir>/<name>.png (RGBA; overlays are transparent off the track):
   road1332-road1350  roads with grass verges, 19 shapes
   cross1370-cross1381 level crossings (rail X/Y, open/barred, grass/paved/snow slot)
   apron2634          concrete slabs (road depot floor, airport apron)
+  deck_<rail|road>_<X|Y>[_wood]  bridge deck surfaces: concrete or timber planks with track or road
 
 Usage: make_infra_textures.py <render/textures> <outdir> [size]
 """
@@ -45,6 +46,9 @@ MARKING = np.array([250, 246, 226.0])
 BARRIER_RED = np.array([214, 58, 52.0])
 POST = np.array([236, 236, 230.0])
 CONCRETE = np.array([180, 180, 174.0])
+DECK = np.array([160, 158, 150.0])
+PLANK = np.array([138, 104, 72.0])
+PLANK_JOINT = np.array([104, 78, 54.0])
 CONCRETE_JOINT = np.array([150, 150, 146.0])
 
 BALLAST_HALF = 0.21
@@ -255,6 +259,24 @@ def main():
     joint = (np.mod((x + 0.5) * 4, 1) < 0.012) | (np.mod((y + 0.5) * 4, 1) < 0.012)
     blend(img, CONCRETE_JOINT, joint.astype(float))
     save(img, os.path.join(outdir, "apron2634.png"))
+
+    # Bridge decks: concrete or timber planks across the deck, with track or road along it.
+    for wood in (False, True):
+        if wood:
+            plank = np.zeros((n, n, 3)) + PLANK * (1 + (noise[..., None] - 0.5) * 0.08)
+        for axis in ("X", "Y"):
+            if wood:
+                along = y if axis == "X" else x
+                ground = plank.copy()
+                joints = (np.mod((along + 0.5) * 16, 1) < 0.08)[..., None]
+                ground = ground * (1 - joints) + PLANK_JOINT * joints
+            else:
+                ground = np.zeros((n, n, 3)) + DECK * (1 + (noise[..., None] - 0.5) * 0.05)
+            suffix = "_wood" if wood else ""
+            img = rail_texture(n, ground, [axis], noise)
+            save(img, os.path.join(outdir, f"deck_rail_{axis}{suffix}.png"))
+            arms = ("SW", "NE") if axis == "X" else ("NW", "SE")
+            save(road_texture(n, ground, arms, False, noise), os.path.join(outdir, f"deck_road_{axis}{suffix}.png"))
     print(f"wrote infrastructure textures to {outdir}")
 
 
