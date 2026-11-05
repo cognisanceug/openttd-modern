@@ -58,15 +58,22 @@ function InfraTest::Start()
 	Check("road depot SW", GSRoad.BuildRoadDepot(T(cx - 4, cy + 2), T(cx - 3, cy + 2)));
 
 	/* Bridges of several types, each in the first free row south of the test layout. */
-	local types = [0, 2, 4, 6, 9, 10];
+	local types = [0, 1, 2, 4, 5, 6, 9, 10];
 	local row = cy + 5;
 	foreach (bt in types) {
 		local built = false;
-		while (!built && row < cy + 16) {
-			built = GSBridge.BuildBridge(GSVehicle.VT_RAIL, bt, T(cx - 3, row), T(cx + 3, row));
+		local first = row;
+		while (!built && row < cy + 18) {
+			/* Seven tiles show every middle piece; some types are shorter. */
+			foreach (d in [3, 2, 1]) {
+				if (!built) built = GSBridge.BuildBridge(GSVehicle.VT_RAIL, bt, T(cx - d, row), T(cx + d, row));
+			}
 			row++;
 		}
-		if (!built) GSLog.Warning("bridge type " + bt + " not built: " + GSError.GetLastErrorString());
+		if (!built) {
+			GSLog.Warning("bridge type " + bt + " not built: " + GSError.GetLastErrorString());
+			row = first; // leave the rows to the next type
+		}
 	}
 
 	/* One rail and one road tunnel on the nearest inclined slopes. */
