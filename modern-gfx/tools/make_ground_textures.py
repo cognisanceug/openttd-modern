@@ -7,8 +7,12 @@ meets its neighbours without a seam. Colours follow the map study:
   bare     soil (map study's earth tones, a little lighter for ground tiles)
   grass13  bare soil with grass on ~1/3 of the area
   grass23  bare soil with grass on ~2/3 of the area
-  rough    darker, patchier meadow (low-poly tufts are added in Blender)
-  rocky    meadow with gravel patches (low-poly boulders are added in Blender)
+  rough    darker, patchier meadow (low-poly tufts are added in Blender); rough1-4 are
+           variants for the flat sprites 4019-4022, see make_rough_rocky()
+  rocky    meadow with scree patches (low-poly boulders are added in Blender); rocky2
+           is the variant for the second rocky set
+  field0-8 farm field stages, see make_fields()
+  snow1-4, desert1-4  snow (arctic) and desert (tropic) densities, see make_snow_desert()
   water    the study's mid-depth water blue, nearly uniform
   sand     beach sand #E2D098 for the shores
   stone    dressed stone courses for foundation walls (U per tile, V per height level)
@@ -132,27 +136,9 @@ def main():
 
         save(growth, size, os.path.join(outdir, f"{name}.png"))
 
-    rng3 = random.Random(777)
-    clumps = periodic_noise(size, 10, rng3)
-    clumps2 = periodic_noise(size, 20, rng3)
-    gravel = periodic_noise(size, 7, rng3)
-    grit = periodic_noise(size, 160, rng3)
-
-    def rough(x, y):
-        c = mix(grass(x, y), LUSH, 0.45)
-        c = mix(c, DEEP, smoothstep(0.5, 0.7, 0.6 * clumps[y][x] + 0.4 * clumps2[y][x]) * 0.7)
-        c = mix(c, DRY, smoothstep(0.62, 0.8, dry[y][x]) * 0.3)
-        return c
-
-    save(rough, size, os.path.join(outdir, "rough.png"))
-
-    def rocky(x, y):
-        c = mix(grass(x, y), LUSH, 0.2)
-        k = smoothstep(0.5, 0.68, gravel[y][x]) * 0.75
-        g = mix(GRAVEL, [v * 0.82 for v in GRAVEL], grit[y][x])
-        return mix(c, g, k)
-
-    save(rocky, size, os.path.join(outdir, "rocky.png"))
+    make_rough_rocky(outdir, size)
+    make_fields(outdir, size)
+    make_snow_desert(outdir, size)
 
     # Water: the map study's mid-depth blue, kept almost uniform because the
     # same tile repeats over whole seas.
@@ -202,6 +188,202 @@ def main():
     save(stone, size, os.path.join(outdir, "stone.png"))
 
     make_river_banks(outdir, size, grass, sand)
+
+
+# Rough and rocky land come in variants that the game picks per tile (rocky
+# sets 4023/4042 by TileHash bit 0, rough land 4000/4019-4022 by bits 0-2), so a
+# large area does not repeat the same tile. All variants share one band along
+# the tile edges and differ only inside it, so any two of them join seamlessly.
+# The noise is band-passed white noise on the torus: periodic per tile like
+# periodic_noise(), but isotropic, so patches have no blocky lattice shapes.
+ROUGH_VARIANTS = 5    # rough.png (slopes and 4000), rough1-4.png (flat 4019-4022)
+ROCKY_VARIANTS = 2    # rocky.png (set 1, 4023), rocky2.png (set 2, 4042)
+EDGE_BAND = (0.02, 0.1)  # tile units from the edge: common below, own pattern above
+SCREE = (128, 124, 114)
+SCREE_LIGHT = (176, 170, 156)
+SCREE_DARK = (98, 94, 88)
+
+
+def _np_smoothstep(e0, e1, v):
+    import numpy as np
+    t = np.clip((v - e0) / (e1 - e0), 0.0, 1.0)
+    return t * t * (3 - 2 * t)
+
+
+def spectral_noise(size, freq, seed, width=0.4):
+    """Periodic isotropic noise: white noise band-passed around `freq` cycles per tile; mean 0, std 1."""
+    import numpy as np
+    white = np.random.default_rng(seed).standard_normal((size, size))
+    f = np.fft.fftfreq(size) * size
+    k = np.hypot(*np.meshgrid(f, f))
+    band = np.exp(-np.log(np.maximum(k, 1e-6) / freq) ** 2 / (2 * width ** 2))
+    band[0, 0] = 0.0
+    out = np.real(np.fft.ifft2(np.fft.fft2(white) * band))
+    return out / out.std()
+
+
+class VariantNoise:
+    """Noise fields for tile variants: variant 0 is the common field; others keep it near the edges."""
+
+    def __init__(self, size, seed):
+        import numpy as np
+        self.size, self.seed = size, seed
+        u = (np.arange(size) + 0.5) / size
+        d = np.minimum(np.minimum(u, 1 - u)[None, :], np.minimum(u, 1 - u)[:, None])
+        self.w = _np_smoothstep(EDGE_BAND[0], EDGE_BAND[1], d)
+
+    def field(self, freq, variant, octave_id):
+        import numpy as np
+        common = spectral_noise(self.size, freq, self.seed * 1000 + octave_id)
+        if variant == 0:
+            return common
+        own = spectral_noise(self.size, freq, self.seed * 1000 + octave_id + 100 * variant)
+        w = self.w
+        # Renormalise so the blend keeps unit variance across the band.
+        return (common * (1 - w) + own * w) / np.sqrt((1 - w) ** 2 + w ** 2)
+
+    def fbm(self, octaves, variant, octave_id):
+        """Weighted sum of fields [(freq, weight)], renormalised to std 1."""
+        import numpy as np
+        total = sum(self.field(f, variant, octave_id + i) * wt for i, (f, wt) in enumerate(octaves))
+        return total / np.sqrt(sum(wt * wt for _, wt in octaves))
+
+
+def _np_mix(a, b, t):
+    import numpy as np
+    a, b = np.asarray(a, float), np.asarray(b, float)
+    return a + (b - a) * np.asarray(t)[..., None]
+
+
+def _save_np(rgb, path):
+    import numpy as np
+    Image.fromarray(np.clip(np.round(rgb), 0, 255).astype(np.uint8), "RGB").save(path)
+    print(f"wrote {path}")
+
+
+def _meadow(vn, v, lushness):
+    """Meadow base for rough and rocky land, gentler than grass.png and varied per variant."""
+    base = vn.fbm([(3, 0.6), (7, 0.4)], v, 0)
+    c = _np_mix(MEADOW, LUSH, lushness + _np_smoothstep(-0.2, 1.4, base) * 0.35)
+    c = _np_mix(c, DRY, _np_smoothstep(0.6, 1.8, vn.fbm([(5, 1.0)], v, 10)) * 0.3)
+    return c * (1.0 + vn.field(110, v, 20) * 0.018)[..., None]
+
+
+def make_rough_rocky(outdir, size):
+    rough_vn = VariantNoise(size, 31)
+    for v in range(ROUGH_VARIANTS):
+        c = _meadow(rough_vn, v, 0.4)
+        # Darker tussock clumps: soft-edged, irregular, at two scales.
+        clumps = rough_vn.fbm([(4, 0.5), (9, 0.45), (20, 0.3)], v, 30)
+        c = _np_mix(c, DEEP, _np_smoothstep(-0.2, 1.6, clumps) * 0.7)
+        # Straw-coloured dry tufts and a fine grain of blades.
+        straw = rough_vn.fbm([(18, 0.6), (40, 0.4)], v, 40)
+        c = _np_mix(c, DRY, _np_smoothstep(1.0, 2.2, straw) * 0.45)
+        c = c * (1.0 + rough_vn.fbm([(70, 0.5), (140, 0.5)], v, 50) * 0.035)[..., None]
+        _save_np(c, os.path.join(outdir, "rough.png" if v == 0 else f"rough{v}.png"))
+
+    rocky_vn = VariantNoise(size, 47)
+    for v in range(ROCKY_VARIANTS):
+        c = _meadow(rocky_vn, v, 0.2)
+        # Scree patches: about 25 % cover, ragged at the rim.
+        scree = rocky_vn.fbm([(3.5, 0.6), (8, 0.4), (18, 0.18)], v, 30)
+        # Thinner along the shared edge band, where every variant looks the same.
+        k = _np_smoothstep(0.55, 1.0, scree) * (0.4 + 0.6 * rocky_vn.w)
+        # Brown soil fringe where grass gives way to gravel.
+        fringe = _np_smoothstep(0.0, 0.45, scree) * (1 - k)
+        c = _np_mix(c, SOIL, fringe * 0.45)
+        # Gravel: mid grey with light stones and dark gaps at pebble size.
+        peb = rocky_vn.fbm([(48, 0.6), (96, 0.4)], v, 40)
+        g = _np_mix(SCREE, SCREE_LIGHT, _np_smoothstep(0.4, 1.8, peb) * 0.6)
+        g = _np_mix(g, SCREE_DARK, _np_smoothstep(0.6, 1.8, -peb) * 0.45)
+        c = _np_mix(c, g, k * 0.9)
+        # Lone stones in the grass around the patches.
+        stones = rocky_vn.field(64, v, 50)
+        c = _np_mix(c, SCREE_LIGHT, _np_smoothstep(2.3, 2.8, stones) * (1 - k) * 0.8)
+        _save_np(c, os.path.join(outdir, "rocky.png" if v == 0 else f"rocky{v + 1}.png"))
+
+
+# Farm fields (sprites 4126-4296): nine stages in _clear_land_sprites_farmland
+# order, ploughed soil -> sown -> green -> ripening -> golden -> stubble -> hay.
+# Rows run along world X (OpenTTD y) and repeat a whole number of times per
+# tile, so the furrows of a field continue from tile to tile.
+FIELD_ROWS = 8
+FIELD_STAGES = (
+    # (crop colour, row cover 0..1, along-row gaps 0..1)
+    (None, 0.0, 0.0),                # 0 bare ploughed soil
+    ((132, 176, 84), 0.22, 0.65),    # 1 seedlings
+    ((108, 164, 72), 0.45, 0.35),    # 2 young crop
+    ((88, 150, 64), 0.78, 0.1),      # 3 full green
+    ((132, 162, 70), 0.85, 0.08),    # 4 turning
+    ((184, 180, 86), 0.88, 0.06),    # 5 ripening
+    ((218, 186, 98), 0.9, 0.05),     # 6 golden, ready to harvest
+    ((212, 190, 128), 0.75, 0.45),   # 7 stubble
+    ((212, 190, 128), 0.75, 0.45),   # 8 stubble with hay bales (bales are geometry)
+)
+FIELD_SOIL = (138, 102, 70)
+FIELD_SOIL_DARK = (104, 76, 54)
+FIELD_SOIL_LIGHT = (164, 128, 92)
+
+
+def make_fields(outdir, size):
+    import numpy as np
+    vn = VariantNoise(size, 63)
+    j = (np.arange(size) + 0.5) / size
+    t = (j * FIELD_ROWS) % 1.0
+    # 0 in the furrow, 1 on the ridge; image rows run along world -Y.
+    ridge = np.broadcast_to((0.5 - 0.5 * np.cos(2 * np.pi * t))[:, None], (size, size))
+    d = np.broadcast_to(np.abs(t - 0.5)[:, None] * 2, (size, size))  # 0 at the row centre
+    clods = vn.fbm([(30, 0.5), (70, 0.5)], 0, 0)
+    patch = vn.fbm([(2, 0.6), (4, 0.4)], 0, 10)  # gentle unevenness across the field
+    plants = vn.field(48, 0, 20)
+    for k, (crop, cover, gaps) in enumerate(FIELD_STAGES):
+        soil = _np_mix(FIELD_SOIL_DARK, FIELD_SOIL, ridge)
+        soil = _np_mix(soil, FIELD_SOIL_LIGHT, _np_smoothstep(0.8, 2.0, clods) * 0.5)
+        if k >= 7:  # harvested: dry, pale soil
+            soil = _np_mix(soil, FIELD_SOIL_LIGHT, 0.45)
+        c = soil
+        if crop:
+            # Leaf cover around the row centre, broken into plants along the row.
+            gap = _np_smoothstep(-0.2, 1.2, -plants) * gaps
+            leaf = _np_smoothstep(cover, cover * 0.55, d) * (1 - gap)
+            col = _np_mix(crop, [v * 0.8 for v in crop], d / max(cover, 1e-3))
+            col = col * (1.0 + clods * 0.03)[..., None]
+            c = _np_mix(c, col, np.clip(leaf, 0, 1))
+        c = c * (1.0 + patch * 0.035)[..., None]
+        _save_np(c, os.path.join(outdir, f"field{k}.png"))
+
+
+# Snow (arctic) and desert (tropic) share the sprites 4493-4568: four densities
+# (_clear_land_sprites_snow_desert), each over 19 slopes. Both grow over the
+# meadow of grass.png on one coverage field, so a tile thickens in place.
+SNOW = (240, 245, 248)
+SNOW_SHADE = (208, 222, 234)
+DESERT = (228, 206, 148)
+DESERT_DARK = (206, 178, 120)
+
+
+def make_snow_desert(outdir, size):
+    import numpy as np
+    grass = np.asarray(Image.open(os.path.join(outdir, "grass.png")).convert("RGB"), float)
+    vn = VariantNoise(size, 79)
+    cover = vn.fbm([(3, 0.5), (7, 0.35), (16, 0.2)], 0, 0)
+    drift = vn.fbm([(5, 0.6), (12, 0.4)], 0, 10)
+    ripple = vn.fbm([(20, 0.5), (36, 0.5)], 0, 20)
+    grain = vn.field(120, 0, 30)
+    snow = _np_mix(SNOW, SNOW_SHADE, _np_smoothstep(0.2, 1.6, drift) * 0.5) * (1 + grain * 0.012)[..., None]
+    sand = _np_mix(DESERT, DESERT_DARK, _np_smoothstep(-0.2, 1.4, ripple) * 0.45) * (1 + grain * 0.03)[..., None]
+    # Dry, sparse grass where the desert starts.
+    dry_grass = _np_mix(grass, DRY, 0.35)
+    for k in range(1, 5):
+        if k == 4:
+            snow_k, sand_k = snow, sand
+        else:
+            t = np.quantile(cover, 1 - k / 4)
+            m = _np_smoothstep(t - 0.22, t + 0.22, cover)
+            snow_k = _np_mix(grass, snow, m)
+            sand_k = _np_mix(dry_grass, sand, m)
+        _save_np(snow_k, os.path.join(outdir, f"snow{k}.png"))
+        _save_np(sand_k, os.path.join(outdir, f"desert{k}.png"))
 
 
 # River bank pieces in OpenTTD's RiverEdge order: sides NE, SE, SW, NW; outer

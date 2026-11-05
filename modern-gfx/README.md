@@ -8,7 +8,10 @@ Currently covered (temperate):
 
 | Sprites   | Content |
 |-----------|---------|
-| 3924–4060 | ground: bare soil, 1/3 and 2/3 grass, grass, rough land (+4 flat variants), two rocky sets |
+| 3924–4060 | ground: bare soil, 1/3 and 2/3 grass, grass, rough land (+4 flat variants with their own texture), two rocky sets (own texture and boulders each; the GRF switches the second set on) |
+| 4126–4296 | farm fields: 9 stages (ploughed, sown, young, green, turning, ripening, golden, stubble, stubble with round hay bales), 19 slopes each |
+| 4493–4568 | snow (sub-arctic) and desert (sub-tropical): 4 densities over the meadow, 19 slopes each; replaced only in their climate (the rest of those climates is still temperate or OpenGFX) |
+| 4090–4125 | farm field fences: hedge, hedge with gate, post-and-rail fence, yellow and red flowering hedge, dry stone wall; flat and both slope directions on the SW/SE edge shapes |
 | 4061      | open water (sea, lakes, canals) |
 | Action 5 `COAST_TILES_DIAGONAL` | all 18 shore shapes: water, foam line, beach, meadow by height |
 | `FEAT_CANALS` `WF_RIVER_SLOPE`, `WF_RIVERBANKS` | rivers: flat water + 4 slopes, and 60 bank pieces (sides, outer/inner corners, flat and sloped); our own definitions replace OpenGFX's |
@@ -59,15 +62,19 @@ tar -xf ~/Documents/OpenTTD/baseset/opengfx-8.0.tar -C ref
 .venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfx1_base.grf 3924 4060 ref/ground
 .venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfx1_base.grf 1576 1715 ref/trees
 .venv/bin/python tools/house_table.py ../src/table ref/houses/houses.json
+.venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfx1_base.grf 4090 4296 ref/fields   # only to compare, not needed to pack
 
 # textures, renders, checks, GRF
 .venv/bin/python tools/make_ground_textures.py render/textures
 .venv/bin/python tools/make_infra_textures.py render/textures render/textures/infra   # needs numpy
 .venv/bin/python tools/make_house_textures.py render/textures ref/houses/houses.json render/textures/houses
 $B -b --factory-startup -P blender/render_ground.py -- render/ground
+$B -b --factory-startup -P blender/render_ground.py -- render/snow --kinds snow1,snow2,snow3,snow4
+$B -b --factory-startup -P blender/render_ground.py -- render/desert --kinds desert1,desert2,desert3,desert4
 $B -b --factory-startup -P blender/render_trees.py -- render/trees
 $B -b --factory-startup -P blender/render_foundations.py -- render/foundations
 $B -b --factory-startup -P blender/render_fences.py -- render/fences
+$B -b --factory-startup -P blender/render_farm_fences.py -- render/fences
 $B -b --factory-startup -P blender/render_signals.py -- render/signals
 $B -b --factory-startup -P blender/render_depots.py -- render/depots
 $B -b --factory-startup -P blender/render_tunnels.py -- render/tunnels
@@ -76,6 +83,7 @@ $B -b --factory-startup -P blender/render_catenary.py -- render/catenary
 $B -b --factory-startup -P blender/render_bridges.py -- render/bridges   # needs ref/bridges/usage.json
 $B -b --factory-startup -P blender/render_houses.py -- render/houses     # --part k/n splits it over processes
 .venv/bin/python tools/check_calibration.py render/ground ref/ground
+.venv/bin/python tools/preview_tiling.py render/ground ref/ground render/preview_rocky_area.png rocky 2 12   # big area, variants as in game
 .venv/bin/python tools/pack_grf.py render ref/ground nml
 ```
 
@@ -88,6 +96,9 @@ SEED=1 tools/ingame_shot.sh modern rocks_4x keep  # leaves the window open
 SEED=2 tools/ingame_shot.sh water coast_4x        # high sea level: coast and coast rocks
 SEED=2 tools/ingame_shot.sh town town_4x          # many towns (start year 2000): houses, foundations, and a river
 SEED=1 SIZE="4800 3200" tools/infra_shot.sh infra_4x   # InfraTest builds rails, roads, crossings, signals, depots, bridges, tunnels, stations, electrifies (start year 2000)
+SEED=3 tools/ingame_shot.sh arctic arctic_4x     # snow; tropic: desert
+LOAD="$PWD/test-home/terrain_test.sav" ZOOM=2 tools/ingame_shot.sh modern terrain_2x   # 2x sprites
+SEED=5 tools/terrain_shot.sh terrain_4x   # TerrainTest funds farms and clears a row of land every 8 days: fields, fences, bare soil -> grass (~3 min)
 ```
 
 ## Style
@@ -95,7 +106,15 @@ SEED=1 SIZE="4800 3200" tools/infra_shot.sh infra_4x   # InfraTest builds rails,
 `blender/style.py` reproduces the map study's lighting: base colour times
 `clamp(1 + gain·(N·L/L.z − 1), lo, hi)`, light from the study's direction.
 Ground textures repeat exactly once per tile so neighbouring tiles join
-seamlessly. Shore tiles are coloured by height on the tile (water below 0.05
+seamlessly. Where the game has several sprites for one ground type (rocky
+land: two sets picked by TileHash bit 0; rough land: four extra flat
+variants), each gets its own texture: the variants share a narrow band
+along the tile edges and differ inside it, so any two of them meet without a
+seam while a large area no longer repeats one pattern. The noise for these
+is band-passed white noise on the tile torus (isotropic, no blocky lattice).
+Boulders on rocky land are mostly small stones that may come near the tile
+edges, so they do not bunch in the tile centres. Farm field furrows repeat a
+whole number of times per tile, so the rows of a field continue across tiles. Shore tiles are coloured by height on the tile (water below 0.05
 levels, then foam, wet sand, beach, meadow), so they meet open water and grass
 without a seam. Water is static; OpenTTD's palette animation is not used.
 Scatter objects (tufts, boulders) are real geometry placed on the slope
