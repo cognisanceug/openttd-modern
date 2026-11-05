@@ -759,10 +759,11 @@ def main():
     # Airports, docks, buoys and the oil rig, see tools/pack_airport.py.
     import pack_airport
     nml += pack_airport.airport_blocks(render_dir, gfx_dir, sheet_block)
-    # Ships and aircraft (toyland has its own), see tools/pack_vehicles.py.
+    # Ships and aircraft (toyland has its own), disasters and effects, see tools/pack_vehicles.py.
     import pack_vehicles
     nml += pack_vehicles.ship_blocks(render_dir, gfx_dir, sheet_block)
     nml += pack_vehicles.aircraft_blocks(render_dir, gfx_dir, sheet_block)
+    nml += pack_vehicles.effect_blocks(render_dir, gfx_dir, sheet_block)
     nml.append(toyland_grass_blocks(render_dir, grass_meta, gfx_dir))
     open(os.path.join(nml_dir, "modern_terrain.nml"), "w").write("\n".join(nml))
 

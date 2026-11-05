@@ -25,6 +25,7 @@ recolour mask (white = company colour), plus <outdir>/meta.json.
   toycargo   3677-3684  Mightymover / Powernaut cargo ship (toyland replaces 0xE5D-0xE6C)
   toyferry   3685-3692  Chugger-Chug / Shivershake ferry
   aircraft, helicopters and rotors: see aircraft.py (3741-3904)
+  disaster vehicles and the road-works bulldozer: see disasters.py (3905-3923, 1416-1419)
 """
 
 import json
@@ -64,6 +65,10 @@ TYPES = {
     "aircraft": dict(origin=[(-1, -1)] * 8, canvas=(128, 80, 46)),
     # The rotor vehicle is ROTOR_Z_OFFSET = 5 above the body; models are built in the body's frame.
     "rotor": dict(origin=[(-1, -1, 5)], canvas=(48, 40, 26), dirs=1),
+    # Disaster vehicles share the aircraft bounds; the zeppelin and the big UFO need a larger canvas.
+    "disaster": dict(origin=[(-1, -1)] * 8, canvas=(176, 128, 80)),
+    # Effect vehicles (EffectVehicle::UpdateDeltaXY) are drawn at their position.
+    "effect": dict(origin=[(0, 0)] * 8, canvas=(48, 40, 26)),
 }
 
 
@@ -379,6 +384,8 @@ MODELS = {
 }
 import aircraft  # noqa: E402  (after the palette above: the toy colours are shared)
 MODELS.update(aircraft.AIRCRAFT)
+import disasters  # noqa: E402
+MODELS.update(disasters.DISASTERS)
 
 
 # --- rendering ---------------------------------------------------------------------------------
@@ -434,10 +441,12 @@ def main():
     os.makedirs(outdir, exist_ok=True)
     meta_path = os.path.join(outdir, "meta.json")
     meta = json.load(open(meta_path)) if os.path.exists(meta_path) else {}
-    for name, (kind, build) in MODELS.items():
+    for name, (kind, build, *model_dirs) in MODELS.items():
         if only and name not in only:
             continue
-        render_model(outdir, name, kind, build, meta, zooms, dirs)
+        # Models the game draws in a few directions only list them (disasters.py).
+        use = dirs if dirs is not None else (set(model_dirs[0]) if model_dirs else None)
+        render_model(outdir, name, kind, build, meta, zooms, use)
         json.dump(meta, open(meta_path, "w"), indent=1, sort_keys=True)
 
 
