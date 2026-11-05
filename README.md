@@ -29,6 +29,7 @@ Currently covered (temperate):
 | 1313–1350 | roads with pavements (towns) and with grass verges: 19 shapes each incl. slopes and dead ends |
 | 1370–1381 | level crossings, open and barred |
 | 1576–1715 | all 20 temperate tree bases × 7 growth stages (17 species; 0x6AD repeats the spruce like OpenGFX) |
+| 2601–2632, 4790 | objects: transmitter, lighthouse, company statue, owned-land flag, company HQ in all 5 sizes (see *Objects and industries*) |
 
 Every sprite ships as 8bpp fallback plus 32bpp at 1x, 2x and 4x.
 
@@ -71,6 +72,7 @@ $B -b --factory-startup -P blender/render_tunnels.py -- render/tunnels
 $B -b --factory-startup -P blender/render_stations.py -- render/stations
 $B -b --factory-startup -P blender/render_catenary.py -- render/catenary
 $B -b --factory-startup -P blender/render_bridges.py -- render/bridges   # needs ref/bridges/usage.json
+$B -b --factory-startup -P blender/render_objects.py -- render/objects
 .venv/bin/python tools/check_calibration.py render/ground ref/ground
 .venv/bin/python tools/pack_grf.py render ref/ground nml
 ```
@@ -84,6 +86,7 @@ SEED=1 tools/ingame_shot.sh modern rocks_4x keep  # leaves the window open
 SEED=2 tools/ingame_shot.sh water coast_4x        # high sea level: coast and coast rocks
 SEED=2 tools/ingame_shot.sh town town_4x          # many towns: foundations, and a river
 SEED=1 SIZE="4800 3200" tools/infra_shot.sh infra_4x   # InfraTest builds rails, roads, crossings, signals, depots, bridges, tunnels, stations, electrifies (start year 2000)
+tools/industry_shot.sh objects_4x    # IndustryTest builds HQ, statue, owned land and every industry (two waves: complete and under construction)
 ```
 
 ## Style
@@ -105,3 +108,18 @@ uses each sprite (head, or back/front/pillar of a section of a bridge family).
 Steel parts carry palette index 75 in a mask, inside the 70-79 range that the
 game's PALETTE_TO_STRUCT_* recolours remap, so shared sprites still appear
 oxide, yellow, red, brown, white or concrete-grey per bridge type.
+
+## Objects
+
+Objects (`blender/render_objects.py`) are built from the low-poly kit in
+`blender/build_kit.py`: boxes, prisms, lathes, rods, roofs and window rows in
+OpenTTD units (x, y 0–16 per tile, z in height units, 8 per level). Building
+sprites are anchored at the bounding box origin of `table/object_land.h` and
+carry their cast shadow like the town houses; ground sprites are the flat
+tile with decals and the low parts standing on it. The HQ (all of its
+sprites, grounds included), the statue and the owned-land flag carry a
+company-colour mask on fascias, flags and the statue's figure.
+
+The tiny and small HQs live entirely in ground sprites (as in the original) and
+stay low; medium to huge HQs put the building into the N, E and W tiles' full-tile
+boxes, the S tile is a forecourt.
