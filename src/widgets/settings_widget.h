@@ -30,6 +30,8 @@ enum GameOptionsWidgets : WidgetID {
 	WID_GO_GUI_SCALE_AUTO_TEXT,    ///< Text for Autodetect GUI scale.
 	WID_GO_GUI_SCALE_BEVEL_BUTTON, ///< Toggle for chunky bevels.
 	WID_GO_GUI_SCALE_BEVEL_TEXT,   ///< Text for chunky bevels.
+	WID_GO_GUI_MODERN_BUTTON,      ///< Toggle for the modern window style.
+	WID_GO_GUI_MODERN_TEXT,        ///< Text for the modern window style.
 	WID_GO_GUI_FONT_SPRITE,        ///< Toggle whether to prefer the sprite font over TTF fonts.
 	WID_GO_GUI_FONT_SPRITE_TEXT,   ///< Text for sprite font toggle.
 	WID_GO_GUI_FONT_AA,            ///< Toggle whether to anti-alias fonts.

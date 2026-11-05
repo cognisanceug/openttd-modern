@@ -318,8 +318,15 @@ static void LoadIntroGame(bool load_newgrfs = true)
 	ResetWindowSystem();
 	SetupColoursAndInitialWindow();
 
-	/* Load the default opening screen savegame */
-	if (SaveOrLoad("opntitle.dat", SaveLoadOperation::Load, DetailedFileType::GameFile, Subdirectory::Baseset) != SaveLoadResult::Ok) {
+	/* Load the opening screen savegame: the one showing the modern graphics set if it can be
+	 * loaded (it needs that NewGRF enabled for new games), otherwise the default one. */
+	bool loaded = SaveOrLoad("opntitle_modern.dat", SaveLoadOperation::Load, DetailedFileType::GameFile, Subdirectory::Baseset) == SaveLoadResult::Ok;
+	if (!loaded) {
+		/* The failed load left its NewGRF list behind; old savegames like opntitle.dat do not reset it. */
+		ResetGRFConfig(false);
+		loaded = SaveOrLoad("opntitle.dat", SaveLoadOperation::Load, DetailedFileType::GameFile, Subdirectory::Baseset) == SaveLoadResult::Ok;
+	}
+	if (!loaded) {
 		GenerateWorld(GWM_EMPTY, 64, 64); // if failed loading, make empty world.
 		SetLocalCompany(COMPANY_SPECTATOR);
 	} else {

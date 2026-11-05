@@ -126,11 +126,19 @@ struct NGRFChunkHandler : ChunkHandler {
 		this->LoadCommon(_grfconfig);
 
 		if (_game_mode == GameMode::Menu) {
-			/* Intro game must not have NewGRF. */
-			if (!_grfconfig.empty()) SlErrorCorrupt("The intro game must not use NewGRF");
-
-			/* Activate intro NewGRFs (townnames) */
-			ResetGRFConfig(false);
+			if (_grfconfig.empty()) {
+				/* Activate intro NewGRFs (townnames) */
+				ResetGRFConfig(false);
+			} else {
+				/* A title scene that shows NewGRF graphics, e.g. the modern graphics set. It may
+				 * only use NewGRF that the player has enabled for new games; those are loaded
+				 * like for a normal game. Otherwise the default title game is used instead. */
+				for (const auto &c : _grfconfig) {
+					bool enabled = std::ranges::any_of(_grfconfig_newgame, [&c](const auto &n) { return n->ident.grfid == c->ident.grfid; });
+					if (!enabled) SlErrorCorrupt("The intro game uses NewGRF that is not enabled for new games");
+				}
+				AppendStaticGRFConfigs(_grfconfig);
+			}
 		} else {
 			/* Append static NewGRF configuration */
 			AppendStaticGRFConfigs(_grfconfig);

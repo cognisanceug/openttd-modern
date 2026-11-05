@@ -32,6 +32,7 @@
 #include "viewport_func.h"
 #include "window_func.h"
 #include "timer/timer.h"
+#include "timer/timer_window.h"
 #include "company_func.h"
 #include "gamelog.h"
 #include "ai/ai.hpp"
@@ -46,6 +47,12 @@
 #include "3rdparty/fmt/chrono.h"
 #include "company_cmd.h"
 #include "misc_cmd.h"
+#include "company_gui.h"
+#include "gui.h"
+#include "rail_gui.h"
+#include "road_gui.h"
+#include "town.h"
+#include "video/video_driver.hpp"
 
 #if defined(WITH_ZLIB)
 #include "network/network_content.h"
@@ -71,6 +78,19 @@ static const IntervalTimer<TimerGameCalendar> _scheduled_monthly_timer = {{Timer
 	 * schedule without it getting immediately cleared. */
 	const std::string filename = _scheduled_monthly_script;
 	_scheduled_monthly_script.clear();
+
+	IConsolePrint(CC_DEFAULT, "Executing scheduled script file '{}'...", filename);
+	IConsoleCmdExec(fmt::format("exec {}", filename));
+}};
+
+static std::string _scheduled_realtime_script; ///< Script scheduled by 'schedule in-5-seconds' (empty if none).
+
+/** Timer that runs every five seconds of real time, also on the title screen, for the 'schedule' console command. */
+static const IntervalTimer<TimerWindow> _scheduled_realtime_timer = {std::chrono::seconds(5), [](auto) {
+	if (_scheduled_realtime_script.empty()) return;
+
+	const std::string filename = _scheduled_realtime_script;
+	_scheduled_realtime_script.clear();
 
 	IConsolePrint(CC_DEFAULT, "Executing scheduled script file '{}'...", filename);
 	IConsoleCmdExec(fmt::format("exec {}", filename));
@@ -1249,8 +1269,19 @@ static bool ConExec(std::span<std::string_view> argv)
 /** Schedule the execution of a script. @copydoc IConsoleCmdProc */
 static bool ConSchedule(std::span<std::string_view> argv)
 {
-	if (argv.size() < 3 || std::string_view(argv[1]) != "on-next-calendar-month") {
-		IConsolePrint(CC_HELP, "Schedule a local script to execute later. Usage: 'schedule on-next-calendar-month <script>'.");
+	if (argv.size() < 3 || (argv[1] != "on-next-calendar-month" && argv[1] != "in-5-seconds")) {
+		IConsolePrint(CC_HELP, "Schedule a local script to execute later. Usage: 'schedule <on-next-calendar-month | in-5-seconds> <script>'.");
+		IConsolePrint(CC_HELP, "  'in-5-seconds' runs within five seconds of real time, also on the title screen.");
+		return true;
+	}
+
+	if (argv[1] == "in-5-seconds") {
+		if (!FioCheckFileExists(argv[2], Subdirectory::Base)) {
+			IConsolePrint(CC_ERROR, "Script file '{}' not found.", argv[2]);
+			return true;
+		}
+		_scheduled_realtime_script = argv[2];
+		IConsolePrint(CC_INFO, "Script file '{}' scheduled to execute within five seconds.", argv[2]);
 		return true;
 	}
 
@@ -1763,6 +1794,54 @@ static bool ConAlias(std::span<std::string_view> argv)
 	} else {
 		alias->cmdline = argv[2];
 	}
+	return true;
+}
+
+/**
+ * Open a window by name, for GUI screenshots from scripts.
+ * @param name Name of the window, see ConShowWindow.
+ */
+static void ShowWindowByName(std::string_view name)
+{
+	if (name == "options") {
+		ShowGameOptions();
+		return;
+	}
+	if ((name == "town" || name == "goto_town" || name == "title_view") && Town::GetNumItems() > 0) {
+		/* The largest town, the most interesting one to look at. */
+		const Town *best = nullptr;
+		for (const Town *t : Town::Iterate()) {
+			if (best == nullptr || t->cache.population > best->cache.population) best = t;
+		}
+		if (name == "town") {
+			ShowTownViewWindow(best->index);
+		} else if (name == "goto_town") {
+			ScrollMainWindowToTile(best->xy, true);
+		} else {
+			/* Centre a bit to the right of the town, so the main menu does not cover it. */
+			TileIndex tile = TileAddWrap(best->xy, -5, 5);
+			ScrollMainWindowToTile(tile != INVALID_TILE ? tile : best->xy, true);
+		}
+		return;
+	}
+	if (_game_mode != GameMode::Normal || !Company::IsValidID(_local_company)) return;
+	if (name == "build_rail") ShowBuildRailToolbar(RAILTYPE_RAIL);
+	if (name == "build_road") ShowBuildRoadToolbar(ROADTYPE_ROAD);
+	if (name == "finances") ShowCompanyFinances(_local_company);
+	if (name == "company") ShowCompany(_local_company);
+}
+
+/** Open a window by name, for GUI screenshots from scripts. @copydoc IConsoleCmdProc */
+static bool ConShowWindow(std::span<std::string_view> argv)
+{
+	static const std::initializer_list<std::string_view> names = {"build_rail", "build_road", "town", "goto_town", "title_view", "finances", "company", "options"};
+	if (argv.size() != 2 || std::ranges::find(names, argv[1]) == names.end()) {
+		IConsolePrint(CC_HELP, "Open a window. Usage: 'show_window <build_rail | build_road | town | goto_town | title_view | finances | company | options>'.");
+		return true;
+	}
+
+	/* Scheduled scripts run on the game thread; windows must be made on the main thread. */
+	VideoDriver::GetInstance()->QueueOnMainThread([name = std::string(argv[1])] { ShowWindowByName(name); });
 	return true;
 }
 
@@ -2982,6 +3061,7 @@ void IConsoleStdLibRegister()
 	IConsole::CmdRegister("reset_enginepool",        ConResetEnginePool,  ConHookNoNetwork);
 	IConsole::CmdRegister("return",                  ConReturn);
 	IConsole::CmdRegister("screenshot",              ConScreenShot);
+	IConsole::CmdRegister("show_window",             ConShowWindow);
 	IConsole::CmdRegister("script",                  ConScript);
 	IConsole::CmdRegister("zoomto",                  ConZoomToLevel);
 	IConsole::CmdRegister("scrollto",                ConScrollToTile);

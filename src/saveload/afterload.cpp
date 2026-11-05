@@ -717,6 +717,17 @@ bool AfterLoadGame()
 		return false;
 	}
 
+	/* A title scene with NewGRF is only shown when all of them are there; a newer
+	 * version of the same NewGRF is fine and needs no warning on the title screen. */
+	if (_game_mode == GameMode::Menu && gcf_res != GRFListCompatibility::AllGood) {
+		if (gcf_res == GRFListCompatibility::NotFound) {
+			SetSaveLoadError(STR_NEWGRF_DISABLED_WARNING);
+			ResetSignalHandlers();
+			return false;
+		}
+		gcf_res = GRFListCompatibility::AllGood;
+	}
+
 	switch (gcf_res) {
 		case GRFListCompatibility::Compatible: ShowErrorMessage(GetEncodedString(STR_NEWGRF_COMPATIBLE_LOAD_WARNING), {}, WarningLevel::Critical); break;
 		case GRFListCompatibility::NotFound:  ShowErrorMessage(GetEncodedString(STR_NEWGRF_DISABLED_WARNING), {}, WarningLevel::Critical); _pause_mode = PauseMode::Error; break;
