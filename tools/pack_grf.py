@@ -51,7 +51,8 @@ company-colour masks.
 
 Catenary: rail wires and pylons (CATENARY 0-35); trams: track overlays
 (TRAMWAY 4-22), tram-only track (27-45), overhead wires front 56-75 and back
-poles 84-94 with a company-colour band.
+poles 84-94 with a company-colour band; tram stops 23-26, depots 49-54 and 113-118,
+tunnel wires 80-83, bridge wires 95-106 and tram-only bridge decks 107-112 (tram_extra_blocks).
 
 Usage: pack_grf.py <render-dir> <ref/ground> <nml-dir>
   (render-dir holds ground/, trees/, foundations/, fences/, signals/, depots/, bridges/, tunnels/)
@@ -247,6 +248,37 @@ def sheet_block(name, header, labels, sprites_by_zoom, gfx_dir, mask_index=COMPA
     return "\n".join(parts)
 
 
+def tram_extra_blocks(render_dir, gfx_dir):
+    """Tram stops, depots, tunnel and bridge wires and tram-only bridge decks; returns NML text.
+
+    TRAMWAY 23-26 (drive-through tram stops, kept for old GRFs) reuse the ROAD_STOPS parts;
+    depots 49-54 (with track) and 113-118 (without, the ones the game uses with our tram overlay)
+    are the same tram hall; bridge wires 95-106 are the straight and sloped ground wires, which
+    the game draws at the same anchor and deck height; 107-112 are tram track on the deck.
+    """
+    ground_dir = os.path.join(render_dir, "ground")
+    st_part = lambda n, z: overlay_sprite(os.path.join(render_dir, "stations"), f"st{n}", z, origin=(63, 72), cc=True)  # noqa: E731
+    cat = lambda n, z: overlay_sprite(os.path.join(render_dir, "catenary"), f"cattram_{n}", z, origin=(47, 72), cc=True)  # noqa: E731
+    depot = lambda n, z: overlay_sprite(os.path.join(render_dir, "depots"), f"depottram{n}", z, origin=(95, 80), cc=True)  # noqa: E731
+    no_mask = lambda sp: sp + (Image.new("L", sp[0].size, 0),)  # noqa: E731
+    stops = ["rs1", "rs2", "rs0", "rs3"]  # BUS_STOP_DT Y_E, X_W, Y_W, X_E
+    # Bridge road-bits offsets 0-5 (flat Y, flat X, ramps NE, SE, SW, NW) as in GetBridgeRoadCatenary().
+    bridge = [84, 85, 56, 57, 68, 70, 71, 69, 72, 74, 75, 73]  # back 95,96, front 97,98, back 99-102, front 103-106
+    out = [sheet_block("tram_stops", "replacenew {name}(TRAMWAY, {file}, 23)", stops,
+                       {z: [st_part(n, z) for n in stops] for z in ZOOMS}, gfx_dir)]
+    for name, first in (("tram_depots_track", 49), ("tram_depots", 113)):
+        out.append(sheet_block(name, f"replacenew {{name}}(TRAMWAY, {{file}}, {first})", list(range(113, 119)),
+                               {z: [depot(n, z) for n in range(113, 119)] for z in ZOOMS}, gfx_dir))
+    out.append(sheet_block("tram_tunnel_wires", "replacenew {name}(TRAMWAY, {file}, 80)", list(range(80, 84)),
+                           {z: [cat(n, z) for n in range(80, 84)] for z in ZOOMS}, gfx_dir))
+    out.append(sheet_block("tram_bridges", "replacenew {name}(TRAMWAY, {file}, 95)",
+                           [f"wire {n}" for n in bridge] + [f"tramdeck{n}" for n in range(107, 113)],
+                           {z: [cat(n, z) for n in bridge]
+                            + [no_mask(bank_sprite(ground_dir, f"tramdeck{n}", 0, z)) for n in range(107, 113)]
+                            for z in ZOOMS}, gfx_dir))
+    return "\n".join(out)
+
+
 def main():
     render_dir, ref_dir, nml_dir = sys.argv[1:4]
     ground_dir, trees_dir, found_dir, fence_dir, signal_dir, depot_dir = (
@@ -374,6 +406,7 @@ def main():
                            gfx_dir))
     nml.append(sheet_block("tram_wires_back", "replacenew {name}(TRAMWAY, {file}, 84)", list(range(84, 95)),
                            {z: [cat(f"tram_{k}", z) for k in range(84, 95)] for z in ZOOMS}, gfx_dir))
+    nml.append(tram_extra_blocks(render_dir, gfx_dir))
     fences = {z: [overlay_sprite(fence_dir, f"fence{n}", z) for n in range(1301, 1309)] for z in ZOOMS}
     nml.append(sheet_block("track_fences", "replace {name}(1301, {file})", list(range(1301, 1309)), fences, gfx_dir))
     for name, header, names in (

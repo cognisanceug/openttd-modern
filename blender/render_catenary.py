@@ -1,4 +1,4 @@
-"""Render rail catenary (CATENARY 0-35) and tram overhead wires (TRAMWAY 56-75, 84-94).
+"""Render rail catenary (CATENARY 0-35) and tram overhead wires (TRAMWAY 56-75, 80-83, 84-94).
 
 Run:  Blender -b --factory-startup -P render_catenary.py -- <outdir> [--only prefix,prefix]
 
@@ -227,6 +227,27 @@ def tram_wires(g, arms):
             g.wire(f"pull{i}", [(cx, cy, g.z_at(cx, cy) + WIRE_Z + 0.6), (mx, my, g.z_at(mx, my) + WIRE_Z + 0.2)], w=0.14)
 
 
+# Tunnel wires (TRAMWAY 80-83, tunnel direction NE, SE, SW, NW): the tile rises one level towards the
+# portal at the tile centre (render_tunnels.py); the wire runs from the outer edge into the arch,
+# dropping below its crown (7.2 units above the road), and hangs from a bracket in the portal.
+TUNNEL_INTO = ((-1, 0), (0, 1), (1, 0), (0, -1))
+
+
+def tram_tunnel_wire(g, d):
+    ux, uy = TUNNEL_INTO[d]
+    at = lambda u: (8 + ux * u, 8 + uy * u)  # noqa: E731
+    ground = lambda u: (u + 8) / 2  # noqa: E731
+    steps = 8
+    pts = []
+    for i in range(steps + 1):
+        u = -8 + 7.4 * i / steps
+        h = WIRE_Z + (6.2 - WIRE_Z) * (i / steps) ** 1.5
+        pts.append(at(u) + (ground(u) + h,))
+    g.wire("contact", pts)
+    end = pts[-1]
+    g.strut("bracket", end, (end[0], end[1], ground(-0.6) + 8.4), 0.25, STEEL)
+
+
 def build(name, cc_pass):
     kind, k = name.split("_")
     k = int(k)
@@ -238,6 +259,9 @@ def build(name, cc_pass):
         else:
             g = G((0, 0, 0), cc_pass)
             rail_pylon(g, PYLON_ARMS[k - 28])
+        return
+    if 80 <= k <= 83:
+        tram_tunnel_wire(G((0, 0, 0), cc_pass), k - 80)
         return
     # Tram: front 56-67 (+ sloped 72-75), back 84-94 (+ sloped 68-71).
     if 68 <= k <= 75:
@@ -257,7 +281,7 @@ def build(name, cc_pass):
 
 def names():
     out = [f"rail_{k}" for k in range(36)]
-    out += [f"tram_{k}" for k in list(SHAPES) + list(BACK) + list(range(68, 76))]
+    out += [f"tram_{k}" for k in list(SHAPES) + list(BACK) + list(range(68, 76)) + list(range(80, 84))]
     return out
 
 
