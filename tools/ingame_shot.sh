@@ -18,6 +18,7 @@
 #   The view cannot be scrolled from the start script (the viewport is placed
 #   afterwards), so pick the map with SEED instead (5: trees, 1: rocks).
 #   LOG=file    writes the game's output with the game script log (-d script=4) to file.
+#   OTTD=path   runs another build (tools/fx_shot.sh: one with tools/disaster_test.patch).
 #   keep: leave the game window open instead of quitting.
 # The test home (test-home/) is rebuilt from test-config/ on every run; OpenGFX
 # is copied from ~/Documents/OpenTTD/baseset, so the user's own config is never touched.
@@ -38,7 +39,7 @@ screenshot ${SHOT:-big} size ${SIZE:-1600 1000} $2
 SCR
 rm -f "$T/screenshot/$2.png"
 if [ -n "$LOAD" ]; then start="-g $LOAD"; else start="-g -G ${SEED:-12345}"; fi
-HOME="$H" ../build/openttd -c "$T/$1.cfg" $start -s null -m null ${LOG:+-d script=4} >"${LOG:-/dev/null}" 2>&1 &
+HOME="$H" ${OTTD:-../build/openttd} -c "$T/$1.cfg" $start -s null -m null ${LOG:+-d script=4} >"${LOG:-/dev/null}" 2>&1 &
 pid=$!
 i=0
 while [ ! -s "$T/screenshot/$2.png" ] && [ $i -lt 120 ]; do perl -e 'select(undef,undef,undef,0.5)'; i=$((i+1)); done
