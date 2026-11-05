@@ -14,8 +14,15 @@ Kinds (blender/house_specs.py decides which ground gets which):
   pitch1/pitch2 one quarter of a football or rugby pitch with mown stripes,
                 concrete under the stands
   plaza         mall forecourt: paving with marked parking bays
+  garden_wall   garden behind a low brick wall instead of the hedge
+  *_snow        sub-arctic grounds above the snow line: the same under snow, paths swept
+  desert_*      sub-tropical: sand garden with a lawn and a tiled path behind a white
+                wall, sandy yard with dry grass, sandstone paving
+  toy_lawn      toyland: bright lawn with confetti-coloured flowers
+  toy_paving    toyland: pastel chequered tiles
 
-Written to <outdir>/g<sprite>.png (RGB).
+Written to <outdir>/g<sprite>.png (RGB); grounds drawn inside a building sprite
+(the "base" of finished houses on bare land) to <outdir>/b<sprite>.png.
 
 Usage: make_house_textures.py <render/textures> <ref/houses/houses.json> <outdir> [size]
 """
@@ -44,6 +51,15 @@ LINE = np.array([244, 244, 236.0])
 STAND_FLOOR = np.array([168, 166, 160.0])
 MARKING = np.array([250, 246, 226.0])
 ASPHALT = np.array([96, 100, 106.0])
+BRICK_WALL = np.array([150, 84, 66.0])
+WHITE_WALL = np.array([238, 234, 222.0])
+SNOW_HEDGE = np.array([206, 222, 214.0])
+SANDSTONE = np.array([222, 196, 150.0])
+SANDSTONE_JOINT = np.array([196, 168, 124.0])
+TERRACOTTA = np.array([198, 116, 82.0])
+DRY_GRASS = np.array([176, 166, 92.0])
+TOY_COLOURS = (np.array([226, 70, 64.0]), np.array([66, 120, 214.0]), np.array([244, 202, 60.0]),
+               np.array([236, 140, 178.0]), np.array([150, 116, 222.0]))
 
 
 def grid(n):
@@ -92,8 +108,9 @@ def footprint(u, v, rects, pad=0.0):
     return a
 
 
-def garden(n, u, v, rng, grass, foot, door):
-    img = grass.copy()
+def garden(n, u, v, rng, grass, foot, door, border="hedge", snow=None):
+    """snow: the snow texture; the plot then lies under snow with the path swept."""
+    img = (snow if snow is not None else grass).copy()
     # Hedge round the plot, open where the path meets the street side.
     edge = np.minimum.reduce([u, v, 16 - u, 16 - v])
     hedge = 1 - smooth(0.8, 1.0, edge)
@@ -114,7 +131,19 @@ def garden(n, u, v, rng, grass, foot, door):
         path = np.zeros_like(u)
     hedge *= 1 - smooth(0.2, 0.6, path)
     leaf = noise(n, rng, 48)
-    blend(img, HEDGE_DARK + (HEDGE - HEDGE_DARK) * leaf[..., None], hedge)
+    if border == "wall":
+        hedge = (1 - smooth(0.45, 0.6, edge)) * (1 - smooth(0.2, 0.6, path))
+        course = (np.mod(u + v * 0.0, 0.7) < 0.1) | (np.mod(v, 0.7) < 0.1)
+        blend(img, BRICK_WALL * (1 - 0.15 * course[..., None]), hedge)
+    else:
+        blend(img, HEDGE_DARK + (HEDGE - HEDGE_DARK) * leaf[..., None], hedge)
+    if snow is not None:
+        blend(img, SNOW_HEDGE, hedge * (0.55 + 0.3 * leaf))
+        stones = PATH * 0.94 * (1 + (noise(n, rng, 32)[..., None] - 0.5) * 0.08)
+        blend(img, stones, path)
+        blend(img, snow, path * (noise(n, rng, 20) > 0.6) * 0.7)
+        blend(img, PAVING_JOINT, footprint(u, v, foot))
+        return img
     # Flower beds along the house walls, dotted with blossoms.
     bed = footprint(u, v, foot, pad=0.9) * (1 - footprint(u, v, foot)) * (1 - path)
     blend(img, SOIL, bed)
@@ -143,6 +172,67 @@ def yard(n, u, v, rng, grass, foot):
     blend(img, grass, bed)
     kerb = (1 - smooth(1.2, 1.35, edge)) * smooth(0.95, 1.1, edge)
     blend(img, SLAB, kerb * (np.mod(u + v, 6) > 1.4))
+    return img
+
+
+def snowy(img, n, rng, snow, cover=0.75):
+    """Snow over a ground, thinner in patches."""
+    blend(img, snow, cover * smooth(0.25, 0.55, noise(n, rng, 10)) + 0.2)
+    return img
+
+
+def desert_garden(n, u, v, rng, sand, grass, foot, door):
+    img = sand.copy()
+    edge = np.minimum.reduce([u, v, 16 - u, 16 - v])
+    lawn = smooth(1.6, 2.4, edge) * smooth(0.35, 0.6, noise(n, rng, 6) + 0.25)
+    blend(img, grass * 0.92, lawn)
+    if door:
+        fx1 = max(r[2] for r in foot)
+        fy1 = max(r[3] for r in foot)
+        mid = (min(r[1] for r in foot) + fy1) / 2 if door == "x" else (min(r[0] for r in foot) + fx1) / 2
+        r = (fx1 - 0.5, mid - 1.0, 16.5, mid + 1.0) if door == "x" else (mid - 1.0, fy1 - 0.5, mid + 1.0, 16.5)
+        path = rect_alpha(u, v, r)
+        blend(img, TERRACOTTA * (1 + (noise(n, rng, 32)[..., None] - 0.5) * 0.1), path)
+        blend(img, TERRACOTTA * 0.8, path * ((np.mod(u, 1.0) < 0.1) | (np.mod(v, 1.0) < 0.1)))
+    else:
+        path = np.zeros_like(u)
+    wall = (1 - smooth(0.4, 0.55, edge)) * (1 - smooth(0.2, 0.6, path))
+    blend(img, WHITE_WALL, wall)
+    blend(img, SANDSTONE_JOINT, footprint(u, v, foot))
+    return img
+
+
+def desert_yard(n, u, v, rng, sand, foot):
+    img = sand * (1 + (noise(n, rng, 12)[..., None] - 0.5) * 0.08)
+    tufts = (noise(n, rng, 40) > 0.62) * (rng.random((n, n)) > 0.6)
+    blend(img, DRY_GRASS, tufts * 0.8)
+    blend(img, SANDSTONE_JOINT, footprint(u, v, foot, pad=0.3) * 0.6)
+    return img
+
+
+def desert_paving(n, u, v, rng, sand):
+    img = np.empty((n, n, 3))
+    img[:] = SANDSTONE * (1 + (noise(n, rng, 16)[..., None] - 0.5) * 0.06)
+    joint = (np.mod(u, 2.6) < 0.12) | (np.mod(v + np.floor(u / 2.6) * 1.3, 2.6) < 0.12)
+    blend(img, SANDSTONE_JOINT, joint.astype(float))
+    blend(img, sand, (noise(n, rng, 14) > 0.7) * 0.5)
+    return img
+
+
+def toy_lawn(n, u, v, rng, grass):
+    img = grass * np.array([0.92, 1.06, 0.9])
+    dots = rng.random((n, n))
+    for k, colour in enumerate(TOY_COLOURS):
+        blend(img, colour, ((dots > 0.996 - 0.0012 * k) & (dots <= 0.9972 - 0.0012 * k)).astype(float))
+    return img
+
+
+def toy_paving(n, u, v, rng):
+    img = np.empty((n, n, 3))
+    check = (np.floor(u / 2) + np.floor(v / 2)) % 2
+    img[:] = np.array([246, 226, 206.0])
+    blend(img, np.array([170, 204, 236.0]), check)
+    blend(img, np.array([226, 212, 196.0]), ((np.mod(u, 2) < 0.1) | (np.mod(v, 2) < 0.1)).astype(float))
     return img
 
 
@@ -208,10 +298,15 @@ def main():
     data = json.load(open(table))
     grass = load_tiled(os.path.join(tex_dir, "grass.png"), n)
     bare = load_tiled(os.path.join(tex_dir, "bare.png"), n)
+    snow = load_tiled(os.path.join(tex_dir, "snow4.png"), n)
+    sand = load_tiled(os.path.join(tex_dir, "desert4.png"), n)
     u, v = grid(n)
-    for sprite, job in sorted(hs.ground_jobs(data).items()):
+    work = [("g", s, j) for s, j in sorted(hs.ground_jobs(data).items())]
+    work += [("b", s, dict(j, kind=j["base"], props=False)) for s, j in sorted(hs.building_jobs(data).items())
+             if j["base"]]
+    for prefix, sprite, job in work:
         rng = np.random.default_rng(sprite)
-        spec = hs.MODELS.get(job["model"], {})
+        spec = hs.spec(job["model"]) if job["model"] else {}
         foot, door = spec.get("foot", []), spec.get("door")
         tile = hs.TILE_OFFSET.get(job["tile"], (0, 0))
         if job["model"] in hs.MULTI.values():
@@ -219,12 +314,26 @@ def main():
             foot = [(x0 - tile[0] * 16, y0 - tile[1] * 16, x1 - tile[0] * 16, y1 - tile[1] * 16)
                     for x0, y0, x1, y1 in foot]
         kind = job["kind"]
+        is_snow = kind.endswith("_snow")
+        kind = kind.removesuffix("_snow")
         if kind == "paving":
             img = paving(n, u, v, rng)
         elif kind == "yard":
             img = yard(n, u, v, rng, grass, foot)
-        elif kind == "garden":
-            img = garden(n, u, v, rng, grass, foot, door)
+        elif kind in ("garden", "garden_wall"):
+            img = garden(n, u, v, rng, grass, foot, door, "wall" if kind == "garden_wall" else "hedge",
+                         snow if is_snow else None)
+            is_snow = False
+        elif kind == "desert_garden":
+            img = desert_garden(n, u, v, rng, sand, grass, foot, door)
+        elif kind == "desert_yard":
+            img = desert_yard(n, u, v, rng, sand, foot)
+        elif kind == "desert_paving":
+            img = desert_paving(n, u, v, rng, sand)
+        elif kind == "toy_lawn":
+            img = toy_lawn(n, u, v, rng, grass)
+        elif kind == "toy_paving":
+            img = toy_paving(n, u, v, rng)
         elif kind == "construction":
             img = construction(n, u, v, rng, bare, foot)
         elif kind in ("pitch1", "pitch2"):
@@ -233,7 +342,10 @@ def main():
             img = plaza(n, u, v, rng, tile)
         else:
             raise ValueError(kind)
-        Image.fromarray(np.clip(img, 0, 255).astype(np.uint8), "RGB").save(os.path.join(outdir, f"g{sprite}.png"))
+        if is_snow:
+            img = snowy(img, n, rng, snow)
+        Image.fromarray(np.clip(img, 0, 255).astype(np.uint8), "RGB").save(
+            os.path.join(outdir, f"{prefix}{sprite}.png"))
 
 
 if __name__ == "__main__":

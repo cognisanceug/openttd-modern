@@ -5,6 +5,7 @@
 #   water   like modern, with a high sea level so coasts and rivers show up
 #   town    like modern, with many towns: houses and roads on slopes show foundations
 #   arctic, tropic, toyland   like modern in that climate (snow, desert, the climate's trees)
+#   arctic_town, tropic_town, toyland_town   the same with many towns, from the year 2000
 #   terrain like infra, runs the TerrainTest game script (see tools/terrain_shot.sh)
 #   infra   like modern, runs the InfraTest game script and autosaves every minute
 #           (see tools/infra_shot.sh)
