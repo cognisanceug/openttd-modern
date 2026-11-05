@@ -19,6 +19,9 @@ Currently covered (temperate):
 | 1275–1290, Action 5 `PRE_SIGNAL_SEMAPHORE_PBS` | all signals: light and semaphore; block, entry, exit, combo, path, one-way path; 8 directions, red/green |
 | 2634      | concrete (road depot floor, airport apron) |
 | 2437–2580 | rail and road bridges of all 13 types: heads, decks, superstructures per section, pillars; steel recolour mask keeps the per-type colours |
+| 1069–1086 | rail station: platforms with benches and lamps, station building, roof pillars, gable roof frame and glass |
+| 2692–2723 | bus and truck bays: floors, bus shelter, stop sign, warehouse with roller doors, fences |
+| Action 5 `ROAD_STOPS`, `ROAD_WAYPOINTS`, `OTTD_GUI` 78–81 | drive-through stops, road waypoints, rail waypoints |
 | 2365–2372, 2389–2396 | rail and road tunnel portals: stone portal with round arch under a grassy mound |
 | 1301–1308 | track fences: low-poly post-and-rail, flat, diagonal and sloped |
 | 1313–1350 | roads with pavements (towns) and with grass verges: 19 shapes each incl. slopes and dead ends |
@@ -63,6 +66,7 @@ $B -b --factory-startup -P blender/render_fences.py -- render/fences
 $B -b --factory-startup -P blender/render_signals.py -- render/signals
 $B -b --factory-startup -P blender/render_depots.py -- render/depots
 $B -b --factory-startup -P blender/render_tunnels.py -- render/tunnels
+$B -b --factory-startup -P blender/render_stations.py -- render/stations
 $B -b --factory-startup -P blender/render_bridges.py -- render/bridges   # needs ref/bridges/usage.json
 .venv/bin/python tools/check_calibration.py render/ground ref/ground
 .venv/bin/python tools/pack_grf.py render ref/ground nml
@@ -76,7 +80,7 @@ SEED=5 tools/ingame_shot.sh modern trees_4x       # -> shots/trees_4x.png
 SEED=1 tools/ingame_shot.sh modern rocks_4x keep  # leaves the window open
 SEED=2 tools/ingame_shot.sh water coast_4x        # high sea level: coast and coast rocks
 SEED=2 tools/ingame_shot.sh town town_4x          # many towns: foundations, and a river
-SEED=1 SIZE="4800 3200" tools/infra_shot.sh infra_4x   # InfraTest builds rails, roads, crossings, signals, depots, bridges, tunnels
+SEED=1 SIZE="4800 3200" tools/infra_shot.sh infra_4x   # InfraTest builds rails, roads, crossings, signals, depots, bridges, tunnels, stations
 ```
 
 ## Style

@@ -44,6 +44,11 @@ the 70-79 range PALETTE_TO_STRUCT_* remaps) so every bridge type keeps its
 colour. Tunnels 2365-2372 and 2389-2396: ground sprites are the slope tile with
 the portal laid over it, front sprites are cropped overlays.
 
+Stations: rail station parts 1069-1086, road stop bays 2692-2723 (floors
+packed like ground, parts as overlays), drive-through stops (ROAD_STOPS),
+road waypoints (ROAD_WAYPOINTS) and rail waypoints (OTTD_GUI 78-81), all with
+company-colour masks.
+
 Usage: pack_grf.py <render-dir> <ref/ground> <nml-dir>
   (render-dir holds ground/, trees/, foundations/, fences/, signals/, depots/, bridges/, tunnels/)
 """
@@ -243,6 +248,7 @@ def main():
     ground_dir, trees_dir, found_dir, fence_dir, signal_dir, depot_dir = (
         os.path.join(render_dir, d) for d in ("ground", "trees", "foundations", "fences", "signals", "depots"))
     bridge_dir, tunnel_dir = os.path.join(render_dir, "bridges"), os.path.join(render_dir, "tunnels")
+    station_dir = os.path.join(render_dir, "stations")
     meta = json.load(open(os.path.join(ref_dir, "meta.json")))
     gfx_dir = os.path.join(nml_dir, "gfx")
     os.makedirs(gfx_dir, exist_ok=True)
@@ -331,6 +337,21 @@ def main():
                    else overlay_sprite(tunnel_dir, f"tun{first + k}", z, origin=(47, 56)) for k in range(8)]
                for z in ZOOMS}
         nml.append(sheet_block(name, f"replace {{name}}({first}, {{file}})", list(range(first, first + 8)), tun, gfx_dir))
+    # Stations and stops.
+    st_part = lambda n, z: overlay_sprite(station_dir, f"st{n}", z, origin=(63, 72), cc=True)  # noqa: E731
+    no_mask = lambda sp: sp + (Image.new("L", sp[0].size, 0),)  # noqa: E731
+    nml.append(sheet_block("rail_station", "replace {name}(1069, {file})", list(range(1069, 1087)),
+                           {z: [st_part(n, z) for n in range(1069, 1087)] for z in ZOOMS}, gfx_dir))
+    bay_floor = set(range(2692, 2696)) | set(range(2708, 2712))
+    nml.append(sheet_block("road_stops", "replace {name}(2692, {file})", list(range(2692, 2724)),
+                           {z: [no_mask(ground_sprite(ground_dir, f"bay{n}", z, grass_meta(0))) if n in bay_floor
+                                else st_part(n, z) for n in range(2692, 2724)] for z in ZOOMS}, gfx_dir))
+    for name, header, parts in (
+        ("drive_through_stops", "replacenew {name}(ROAD_STOPS, {file})", [f"rs{k}" for k in range(8)]),
+        ("road_waypoints", "replacenew {name}(ROAD_WAYPOINTS, {file})", [f"rw{k}" for k in range(4)]),
+        ("rail_waypoints", "replacenew {name}(OTTD_GUI, {file}, 78)", [f"wp{k}" for k in range(4)]),
+    ):
+        nml.append(sheet_block(name, header, parts, {z: [st_part(n, z) for n in parts] for z in ZOOMS}, gfx_dir))
     fences = {z: [overlay_sprite(fence_dir, f"fence{n}", z) for n in range(1301, 1309)] for z in ZOOMS}
     nml.append(sheet_block("track_fences", "replace {name}(1301, {file})", list(range(1301, 1309)), fences, gfx_dir))
     for name, header, names in (
@@ -349,7 +370,7 @@ def main():
     open(os.path.join(nml_dir, "lang", "english.lng"), "w").write(
         "##grflangid 0x01\n"
         "STR_GRF_NAME :Modern Terrain\n"
-        "STR_GRF_DESC :32bpp temperate ground, water and shores, foundations, trees, rails, roads, signals, depots, bridges and tunnels rendered in Blender. Licence: GPL v2.\n"
+        "STR_GRF_DESC :32bpp temperate ground, water and shores, foundations, trees and transport infrastructure rendered in Blender. Licence: GPL v2.\n"
     )
     nmlc = os.path.join(os.path.dirname(sys.executable), "nmlc")
     subprocess.run([nmlc, "-c", "--grf", "modern_terrain.grf", "modern_terrain.nml"], cwd=nml_dir, check=True)

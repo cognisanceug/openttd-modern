@@ -19,6 +19,7 @@ Written to <outdir>/<name>.png (RGBA; overlays are transparent off the track):
   cross1370-cross1381 level crossings (rail X/Y, open/barred, grass/paved/snow slot)
   apron2634          concrete slabs (road depot floor, airport apron)
   deck_<rail|road>_<X|Y>[_wood]  bridge deck surfaces: concrete or timber planks with track or road
+  bay2692-bay2695, bay2708-bay2711  bus and truck bay floors (entrance NE, SE, SW, NW)
 
 Usage: make_infra_textures.py <render/textures> <outdir> [size]
 """
@@ -49,6 +50,7 @@ CONCRETE = np.array([180, 180, 174.0])
 DECK = np.array([160, 158, 150.0])
 PLANK = np.array([138, 104, 72.0])
 PLANK_JOINT = np.array([104, 78, 54.0])
+BAY_YELLOW = np.array([236, 196, 52.0])
 CONCRETE_JOINT = np.array([150, 150, 146.0])
 
 BALLAST_HALF = 0.21
@@ -277,6 +279,29 @@ def main():
             save(img, os.path.join(outdir, f"deck_rail_{axis}{suffix}.png"))
             arms = ("SW", "NE") if axis == "X" else ("NW", "SE")
             save(road_texture(n, ground, arms, False, noise), os.path.join(outdir, f"deck_road_{axis}{suffix}.png"))
+    # Road stop bays: asphalt, kerb on the three closed sides, bay markings.
+    edge_d = {"NE": 0.5 - y, "SE": 0.5 - x, "SW": y + 0.5, "NW": x + 0.5}
+    opposite = {"NE": "SW", "SE": "NW", "SW": "NE", "NW": "SE"}
+    for base, truck in ((2692, False), (2708, True)):
+        for k, entrance in enumerate(("NE", "SE", "SW", "NW")):
+            img = np.zeros((n, n, 4))
+            img[..., :3] = PAVING * (1 + (noise[..., None] - 0.5) * 0.05)
+            img[..., 3] = 1.0
+            closed = [e for e in edge_d if e != entrance]
+            inner = np.min([edge_d[e] for e in closed], axis=0)
+            blend(img, KERB, (inner > 0.06).astype(float))
+            blend(img, ASPHALT * (1 + (noise[..., None] - 0.5) * 0.06), (inner > 0.085).astype(float))
+            far = edge_d[opposite[entrance]]
+            side = np.min([edge_d[e] for e in closed if e != opposite[entrance]], axis=0)
+            if truck:
+                # Two parking bays separated by a white line along the bay.
+                along_mid = np.abs(side - 0.5) < 0.01
+                blend(img, MARKING, (along_mid & (far > 0.12)).astype(float))
+                blend(img, MARKING, ((np.abs(far - 0.12) < 0.01) & (side > 0.1)).astype(float))
+            else:
+                box = (inner > 0.13) & (inner < 0.15)
+                blend(img, BAY_YELLOW, box.astype(float))
+            save(img, os.path.join(outdir, f"bay{base + k}.png"))
     print(f"wrote infrastructure textures to {outdir}")
 
 
