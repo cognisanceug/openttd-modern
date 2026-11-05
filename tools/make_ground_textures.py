@@ -77,11 +77,6 @@ def mix(a, b, t):
     return [x + (y - x) * t for x, y in zip(a, b)]
 
 
-def quantile(field, q):
-    vals = sorted(v for row in field for v in row[::4])
-    return vals[int(q * (len(vals) - 1))]
-
-
 def save(img_fn, size, path):
     img = Image.new("RGB", (size, size))
     px = img.load()
@@ -93,6 +88,8 @@ def save(img_fn, size, path):
 
 
 def main():
+    import numpy as np
+
     outdir = sys.argv[1]
     size = int(sys.argv[2]) if len(sys.argv) > 2 else 512
     os.makedirs(outdir, exist_ok=True)
@@ -107,8 +104,7 @@ def main():
     soil_n = periodic_noise(size, 5, rng2)
     soil_fine = periodic_noise(size, 24, rng2)
     pebbles = periodic_noise(size, 128, rng2)
-    cover = [[0.65 * a + 0.35 * b for a, b in zip(ra, rb)]
-             for ra, rb in zip(periodic_noise(size, 6, rng2), periodic_noise(size, 16, rng2))]
+    cover = make_grass_cover(size)
 
     def bare(x, y):
         c = mix(SOIL, SOIL_DARK, smoothstep(0.45, 0.7, soil_n[y][x]) * 0.6)
@@ -119,11 +115,13 @@ def main():
 
     save(bare, size, os.path.join(outdir, "bare.png"))
 
+    # Both stages threshold the same field, so the grass of 1/3 is still there in
+    # 2/3 and the patches grow in place.
     for name, share in (("grass13", 1 / 3), ("grass23", 2 / 3)):
-        t = quantile(cover, 1 - share)
+        t = float(np.quantile(cover, 1 - share))
 
         def growth(x, y, t=t):
-            k = smoothstep(t - 0.025, t + 0.025, cover[y][x])
+            k = smoothstep(t - 0.12, t + 0.12, cover[y, x])
             return mix(bare(x, y), grass(x, y), k)
 
         save(growth, size, os.path.join(outdir, f"{name}.png"))
@@ -284,6 +282,20 @@ def make_grass(size):
     c = _np_mix(MEADOW, LUSH, _np_smoothstep(-0.6, 1.8, lush) * 0.32)
     c = _np_mix(c, DRY, _np_smoothstep(-0.6, 1.8, dry) * 0.44)
     return c * (1.0 + grain * 0.02)[..., None]
+
+
+def make_grass_cover(size):
+    """Where grass grows back on bare soil (1/3 and 2/3 stages): mean 0, std 1.
+
+    Like make_grass(), the regrowth stages are one sprite each on every tile, so
+    the patches sit at 8-24 cycles per tile with nothing below that: tufts and
+    small clumps that read as texture over a large area, not one big patch per
+    tile repeating as a grid.
+    """
+    import numpy as np
+    octaves = ((8, 0.5), (13, 0.45), (24, 0.3))
+    total = sum(spectral_noise(size, f, 1400 + i) * w for i, (f, w) in enumerate(octaves))
+    return total / total.std()
 
 
 def make_rough_rocky(outdir, size):
