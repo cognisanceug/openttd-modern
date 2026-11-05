@@ -14,4 +14,4 @@ while [ "$(ls "$T/save/autosave" 2>/dev/null | wc -l)" -lt 3 ] && [ $i -lt 600 ]
 perl -e 'select(undef,undef,undef,2)'
 pkill -f "$T/industry.cfg" || true
 save="$(ls -t "$T"/save/autosave/* | head -1)"
-LOAD="$save" SIZE="${SIZE:-8000 4000}" tools/ingame_shot.sh modern "$1" $2
+LOAD="$save" SIZE="${SIZE:-10000 5000}" tools/ingame_shot.sh modern "$1" $2
