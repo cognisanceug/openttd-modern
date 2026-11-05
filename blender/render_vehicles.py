@@ -64,6 +64,12 @@ TYPES = {
     "aircraft": dict(origin=[(-1, -1)] * 8, canvas=(128, 80, 46)),
     # The rotor vehicle is ROTOR_Z_OFFSET = 5 above the body; models are built in the body's frame.
     "rotor": dict(origin=[(-1, -1, 5)], canvas=(48, 40, 26), dirs=1),
+    # Trains (Train::UpdateDeltaXY for the original length 8): the box origin plus offset is (-1, -1) in
+    # the N/E/S/W directions and moves 2 units back along the track in NE/SW (x) and SE/NW (y). In
+    # N/E/S/W a vehicle step moves one unit in x and in y, so the vehicles are sqrt(2) longer there
+    # (stretch). train4 sets have 4 sprites the game uses for both ends (direction & 3).
+    "train": dict(origin=[(-1, -1), (-3, -1), (-1, -1), (-1, -3)] * 2, canvas=(72, 52, 32), stretch=True),
+    "train4": dict(origin=[(-1, -1), (-3, -1), (-1, -1), (-1, -3)] * 2, canvas=(72, 52, 32), stretch=True, dirs=4),
 }
 
 
@@ -379,12 +385,14 @@ MODELS = {
 }
 import aircraft  # noqa: E402  (after the palette above: the toy colours are shared)
 MODELS.update(aircraft.AIRCRAFT)
+import trains  # noqa: E402
+MODELS.update(trains.TRAINS)
 
 
 # --- rendering ---------------------------------------------------------------------------------
 
-def turned(parts, d):
-    """Copies of parts with local +a pointing in direction d (proper rotation about z)."""
+def turned(parts, d, stretch=1.0):
+    """Copies of parts with local +a pointing in direction d (proper rotation about z), a scaled by stretch."""
     dx, dy = DIRS[d]
     th = math.atan2(dy, dx)
     c, s = math.cos(th), math.sin(th)
@@ -392,7 +400,7 @@ def turned(parts, d):
     for mat, bm in parts:
         bm = bm.copy()
         for v in bm.verts:
-            a, b = v.co.x, v.co.y
+            a, b = v.co.x * stretch, v.co.y
             v.co = Vector((a * c - b * s, a * s + b * c, v.co.z))
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
         out.append((mat, bm))
@@ -407,7 +415,7 @@ def render_model(outdir, name, kind, build, meta, zooms=bk.ZOOMS, dirs=None):
     for d in range(spec.get("dirs", 8)):
         if dirs is not None and d not in dirs:
             continue
-        parts = turned(k.parts, d)
+        parts = turned(k.parts, d, math.sqrt(2) if spec.get("stretch") and d % 2 == 0 else 1.0)
         sx, sy = remap(*spec["origin"][d])
         for zoom in zooms:
             zdir = os.path.join(outdir, f"z{zoom}")
@@ -428,6 +436,8 @@ def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     outdir = argv[0] if argv and not argv[0].startswith("--") else os.path.join(os.getcwd(), "render", "vehicles")
     only = set(argv[argv.index("--only") + 1].split(",")) if "--only" in argv else None
+    if only and "trains" in only:  # --only trains: every train model
+        only |= set(trains.TRAINS)
     # Previews: --zooms 4 --dirs 2,5 render a subset.
     zooms = [int(z) for z in argv[argv.index("--zooms") + 1].split(",")] if "--zooms" in argv else bk.ZOOMS
     dirs = {int(d) for d in argv[argv.index("--dirs") + 1].split(",")} if "--dirs" in argv else None

@@ -12,11 +12,12 @@
 #   LOAD    load this savegame instead of generating a map
 #   CLIMATE=toyland (or arctic, tropic) generates the map in that climate; it passes through
 #               infra_shot.sh, water_shot.sh and airport_shot.sh, so their test scripts build there.
-#   YEAR=n      sets the start year of a generated map (aircraft_shot.sh passes it through).
+#   YEAR=n      sets the start year of a generated map (aircraft_shot.sh and train_shot.sh pass it through).
 #   SHOT=big renders at the max zoom-in (4x), SHOT=normal always at 1x.
 #   ZOOM=2 caps the zoom-in at 2x, so SHOT=big shows the 2x sprites.
 #   The view cannot be scrolled from the start script (the viewport is placed
 #   afterwards), so pick the map with SEED instead (5: trees, 1: rocks).
+#   LOG=file    writes the game's output with the game script log (-d script=4) to file.
 #   keep: leave the game window open instead of quitting.
 # The test home (test-home/) is rebuilt from test-config/ on every run; OpenGFX
 # is copied from ~/Documents/OpenTTD/baseset, so the user's own config is never touched.
@@ -37,7 +38,7 @@ screenshot ${SHOT:-big} size ${SIZE:-1600 1000} $2
 SCR
 rm -f "$T/screenshot/$2.png"
 if [ -n "$LOAD" ]; then start="-g $LOAD"; else start="-g -G ${SEED:-12345}"; fi
-HOME="$H" ../build/openttd -c "$T/$1.cfg" $start -s null -m null >/dev/null 2>&1 &
+HOME="$H" ../build/openttd -c "$T/$1.cfg" $start -s null -m null ${LOG:+-d script=4} >"${LOG:-/dev/null}" 2>&1 &
 pid=$!
 i=0
 while [ ! -s "$T/screenshot/$2.png" ] && [ $i -lt 120 ]; do perl -e 'select(undef,undef,undef,0.5)'; i=$((i+1)); done
