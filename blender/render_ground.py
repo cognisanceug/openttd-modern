@@ -16,6 +16,10 @@ Water kinds (output files are named after the sprite slot, not a base sprite):
   river    river0-3  first four sprites of the Action 5 CANAL block: river slopes
   coastrocks coastrock0-18  overlay rocks on water and coast (Action 5 OVERLAY_ROCKS,
            offset 95), in slope order; rendered without the tile, which only occludes
+  infra    rail1005-1036, road1313-1350, cross1370-1381: rails, roads and level
+           crossings from tools/make_infra_textures.py (render/textures/infra),
+           on the flat tile or the slope the sprite is drawn on; 1005-1010 are
+           overlays without ground
   riverbank bank0-59 river edges for our own canal-feature definition: 12 pieces
            (sides NE, SE, SW, NW; outer and inner corners E, S, W, N) for flat
            river tiles and for the slopes SE, NE, SW, NW (offsets 0/12/24/36/48)
@@ -62,7 +66,20 @@ KINDS = {
     "rocky2": (4042, "rocky", "rocks"),
 }
 ROUGH_FLAT_VARIANTS = (4019, 4020, 4021, 4022)
-WATER_KINDS = ("water", "shore", "river", "coastrocks", "riverbank")
+WATER_KINDS = ("water", "shore", "river", "coastrocks", "riverbank", "infra")
+# Sloped track sprites 1023-1034 (offset from 1011 -> slope), see _track_sloped_sprites.
+RAIL_SLOPES = {12: 8, 13: 4, 14: 1, 15: 2, 16: 14, 17: 7, 18: 11, 19: 13, 20: 12, 21: 6, 22: 3, 23: 9}
+ROAD_SLOPES = {11: 12, 12: 6, 13: 3, 14: 9}  # road sprite offset -> slope NE, SE, SW, NW
+
+
+def infra_jobs():
+    """(name, slope, overlay) for every rail, road and level-crossing sprite."""
+    out = [(f"rail{s}", 0, True) for s in range(1005, 1011)]
+    out += [(f"rail{s}", RAIL_SLOPES.get(s - 1011, 0), False) for s in range(1011, 1037)]
+    for base in (1313, 1332):
+        out += [(f"road{base + k}", ROAD_SLOPES.get(k, 0), False) for k in range(19)]
+    out += [(f"cross{s}", 0, False) for s in range(1370, 1382)]
+    return out
 BANK_SLOPES = (0, 6, 12, 3, 9)  # flat, SE, NE, SW, NW as in DrawRiverWater()
 WET_ROCK_COLORS = ((112, 112, 108), (128, 126, 120), (100, 104, 104))
 # Shore sprite index -> slope (inverse of tileh_to_shoresprite in water_cmd.cpp).
@@ -101,6 +118,9 @@ def jobs(kinds):
             continue
         if kind == "riverbank":
             out += [(f"bank{v * 12 + k}", slope, kind, k) for v, slope in enumerate(BANK_SLOPES) for k in range(12)]
+            continue
+        if kind == "infra":
+            out += [(name, slope, kind, name) for name, slope, _ in infra_jobs()]
             continue
         first = KINDS[kind][0]
         out += [(first + k, slope, kind, first + k) for k, slope in enumerate(oc.SPRITE_SLOPES)]
@@ -292,6 +312,11 @@ def ground_material(kind, piece=None):
         return st.shore_material(tex("water"), tex("sand"), tex("grass"))
     if kind == "riverbank":
         return st.bank_material(tex(f"riverbank{piece}"))
+    if kind == "infra":
+        path = os.path.join(TEXTURES, "infra", f"{piece}.png")
+        if piece in {n for n, _, overlay in infra_jobs() if overlay}:
+            return st.bank_material(path)
+        return st.toon_material("infra", image_path=path, params=st.GROUND, extension="EXTEND")
     return st.toon_material("ground", image_path=tex(KINDS[kind][1]), params=st.GROUND)
 
 

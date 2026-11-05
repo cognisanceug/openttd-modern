@@ -16,6 +16,11 @@ from the rendered bank times the tile mask, cropped like overlays). Coast rocks 
 (Action 5 OVERLAY_ROCKS from offset 95, 19 slopes) cropped to their visible
 pixels, with the same drawing origin as the ground tiles.
 
+Infrastructure: rails 1005-1036 (1005-1010 are overlays without ground, cut
+like river banks), roads 1313-1350 and level crossings 1370-1381, all packed
+like ground tiles with the crop box of the grass sprite on the same slope.
+Track fences 1301-1308 are cropped like overlays.
+
 Foundations: the 14 leveled foundations 990-1003 and the 90-sprite Action 5
 FOUNDATIONS_SLOPES_HALFTILES block, cropped like overlays (fully empty
 variants become a 1x1 transparent sprite).
@@ -27,7 +32,7 @@ bounding box. The drawing origin sits at canvas pixel (31z, 64z).
 
 Each block gets an 8bpp fallback (DOS palette) plus 32bpp sprites at 1x, 2x, 4x.
 
-Usage: pack_grf.py <ground-render-dir> <ref/ground> <trees-render-dir> <foundations-render-dir> <nml-dir>
+Usage: pack_grf.py <ground-render-dir> <ref/ground> <trees-render-dir> <foundations-render-dir> <fences-render-dir> <nml-dir>
 """
 
 import json
@@ -59,6 +64,8 @@ WATER_BLOCKS = (
     ("water_shore", "replacenew {name}(COAST_TILES_DIAGONAL, {file})", [(f"shore{i}", s) for i, s in enumerate(SHORE_SLOPES)]),
 )
 BANK_SLOPES = (0, 6, 12, 3, 9)  # bank variants: flat, SE, NE, SW, NW
+RAIL_SLOPES = {12: 8, 13: 4, 14: 1, 15: 2, 16: 14, 17: 7, 18: 11, 19: 13, 20: 12, 21: 6, 22: 3, 23: 9}
+ROAD_SLOPES = {11: 12, 12: 6, 13: 3, 14: 9}
 COAST_ROCKS_OFFSET = 95  # SPR_OVERLAY_ROCKS_WATER_COAST - SPR_OVERLAY_ROCKS_BASE
 # (block name, first sprite, first rendered sprite)
 TREE_BLOCKS = tuple((f"tree_{b:x}", b, 1597 if b == 0x6AD else b) for b in range(0x628, 0x6AD + 1, 7))
@@ -169,7 +176,7 @@ def sheet_block(name, header, labels, sprites_by_zoom, gfx_dir):
 
 
 def main():
-    ground_dir, ref_dir, trees_dir, found_dir, nml_dir = sys.argv[1:6]
+    ground_dir, ref_dir, trees_dir, found_dir, fence_dir, nml_dir = sys.argv[1:7]
     meta = json.load(open(os.path.join(ref_dir, "meta.json")))
     gfx_dir = os.path.join(nml_dir, "gfx")
     os.makedirs(gfx_dir, exist_ok=True)
@@ -211,6 +218,20 @@ def main():
     rocks = {z: [overlay_sprite(ground_dir, n, z) for n in names] for z in ZOOMS}
     nml.append(sheet_block("water_coast_rocks", f"replacenew {{name}}(OVERLAY_ROCKS, {{file}}, {COAST_ROCKS_OFFSET})",
                            names, rocks, gfx_dir))
+    grass_meta = lambda slope: meta[str(3981 + SPRITE_SLOPES.index(slope))]  # noqa: E731
+    rails = {z: [bank_sprite(ground_dir, f"rail{n}", 0, z) for n in range(1005, 1011)]
+             + [ground_sprite(ground_dir, f"rail{n}", z, grass_meta(RAIL_SLOPES.get(n - 1011, 0)))
+                for n in range(1011, 1037)] for z in ZOOMS}
+    nml.append(sheet_block("rails", "replace {name}(1005, {file})", list(range(1005, 1037)), rails, gfx_dir))
+    roads = {z: [ground_sprite(ground_dir, f"road{base + k}", z, grass_meta(ROAD_SLOPES.get(k, 0)))
+                 for base in (1313, 1332) for k in range(19)] for z in ZOOMS}
+    nml.append(sheet_block("roads", "replace {name}(1313, {file})", list(range(1313, 1351)), roads, gfx_dir))
+    crossings = {z: [ground_sprite(ground_dir, f"cross{n}", z, grass_meta(0)) for n in range(1370, 1382)]
+                 for z in ZOOMS}
+    nml.append(sheet_block("level_crossings", "replace {name}(1370, {file})", list(range(1370, 1382)),
+                           crossings, gfx_dir))
+    fences = {z: [overlay_sprite(fence_dir, f"fence{n}", z) for n in range(1301, 1309)] for z in ZOOMS}
+    nml.append(sheet_block("track_fences", "replace {name}(1301, {file})", list(range(1301, 1309)), fences, gfx_dir))
     for name, header, names in (
         ("foundations_base", "replace {name}(990, {file})", [f"found_base{t}" for t in range(1, 15)]),
         ("foundations", "replacenew {name}(FOUNDATIONS_SLOPES_HALFTILES, {file})", [f"found{k}" for k in range(90)]),
@@ -227,7 +248,7 @@ def main():
     open(os.path.join(nml_dir, "lang", "english.lng"), "w").write(
         "##grflangid 0x01\n"
         "STR_GRF_NAME :Modern Terrain\n"
-        "STR_GRF_DESC :32bpp temperate ground, water and shores, foundations and trees rendered in Blender. Licence: GPL v2.\n"
+        "STR_GRF_DESC :32bpp temperate ground, water and shores, foundations, trees, rails and roads rendered in Blender. Licence: GPL v2.\n"
     )
     nmlc = os.path.join(os.path.dirname(sys.executable), "nmlc")
     subprocess.run([nmlc, "-c", "--grf", "modern_terrain.grf", "modern_terrain.nml"], cwd=nml_dir, check=True)

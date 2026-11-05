@@ -60,7 +60,7 @@ def _lum_strength(nt, gain, lo, hi, bias=0.0):
     return math_node("POWER", v, 2.2)
 
 
-def toon_material(name, color_rgb=None, image_path=None, params=OBJECT):
+def toon_material(name, color_rgb=None, image_path=None, params=OBJECT, extension="REPEAT"):
     """Emission material: base colour (sRGB tuple or world-XY image, 1 repeat per tile) times lum."""
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
@@ -72,13 +72,13 @@ def toon_material(name, color_rgb=None, image_path=None, params=OBJECT):
     nt.links.new(_lum_strength(nt, **params), em.inputs["Strength"])
 
     if image_path:
-        nt.links.new(_world_xy_texture(nt, image_path), em.inputs["Color"])
+        nt.links.new(_world_xy_texture(nt, image_path, extension), em.inputs["Color"])
     else:
         em.inputs["Color"].default_value = lin(color_rgb)
     return mat
 
 
-def _world_xy_texture(nt, image_path):
+def _world_xy_texture(nt, image_path, extension="REPEAT"):
     """Image texture repeating once per tile in world XY; returns the colour socket.
 
     The tile spans -0.5..0.5, so the texture is shifted to put its wrap lines on tile edges.
@@ -90,7 +90,7 @@ def _world_xy_texture(nt, image_path):
     tex = nt.nodes.new("ShaderNodeTexImage")
     tex.image = bpy.data.images.load(image_path, check_existing=True)
     tex.image.colorspace_settings.name = "sRGB"
-    tex.extension = "REPEAT"
+    tex.extension = extension
     tex.interpolation = "Cubic"
     nt.links.new(geo.outputs["Position"], mapping.inputs["Vector"])
     nt.links.new(mapping.outputs["Vector"], tex.inputs["Vector"])

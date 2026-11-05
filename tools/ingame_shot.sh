@@ -1,9 +1,12 @@
 #!/bin/sh
 # Start OpenTTD in an isolated test home, take one screenshot and quit.
-# Usage: [SEED=n] [SHOT=big|normal] [SIZE="w h"] ingame_shot.sh <modern|base|water|town> <name> [keep]
+# Usage: [SEED=n | LOAD=savegame] [SHOT=big|normal] [SIZE="w h"] ingame_shot.sh <config> <name> [keep]
 #   modern  OpenGFX plus nml/modern_terrain.grf      base  OpenGFX only
 #   water   like modern, with a high sea level so coasts and rivers show up
 #   town    like modern, with many towns: houses and roads on slopes show foundations
+#   infra   like modern, runs the InfraTest game script and autosaves every minute
+#           (see tools/infra_shot.sh)
+#   LOAD    load this savegame instead of generating a map
 #   SHOT=big renders at the max zoom-in (4x), SHOT=normal always at 1x.
 #   The view cannot be scrolled from the start script (the viewport is placed
 #   afterwards), so pick the map with SEED instead (5: trees, 1: rocks).
@@ -16,13 +19,15 @@ H="$PWD/test-home"
 T="$H/Documents/OpenTTD"
 mkdir -p "$T/baseset" "$T/newgrf" "$T/scripts" "$T/screenshot"
 cp test-config/*.cfg "$T/"
+rm -rf "$T/game" && cp -R test-config/game "$T/game"
 [ -f "$T/baseset/opengfx-8.0.tar" ] || cp "$HOME/Documents/OpenTTD/baseset/opengfx-8.0.tar" "$T/baseset/"
 ln -sf "$PWD/nml/modern_terrain.grf" "$T/newgrf/modern_terrain.grf"
 cat > "$T/scripts/game_start.scr" <<SCR
 screenshot ${SHOT:-big} size ${SIZE:-1600 1000} $2
 SCR
 rm -f "$T/screenshot/$2.png"
-HOME="$H" ../build/openttd -c "$T/$1.cfg" -g -G ${SEED:-12345} -s null -m null >/dev/null 2>&1 &
+if [ -n "$LOAD" ]; then start="-g $LOAD"; else start="-g -G ${SEED:-12345}"; fi
+HOME="$H" ../build/openttd -c "$T/$1.cfg" $start -s null -m null >/dev/null 2>&1 &
 pid=$!
 i=0
 while [ ! -s "$T/screenshot/$2.png" ] && [ $i -lt 120 ]; do perl -e 'select(undef,undef,undef,0.5)'; i=$((i+1)); done
