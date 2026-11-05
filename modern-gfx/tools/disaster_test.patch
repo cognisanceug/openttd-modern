@@ -1,0 +1,35 @@
+diff --git a/src/disaster_vehicle.cpp b/src/disaster_vehicle.cpp
+index 474f7b9ec3..37754f5634 100644
+--- a/src/disaster_vehicle.cpp
++++ b/src/disaster_vehicle.cpp
+@@ -961,6 +961,18 @@ static void DoDisaster()
+ 
+ 	if (available_disasters.empty()) return;
+ 
++	/* Graphics test hook: OTTD_FX_DISASTERS="0,2,4" runs these disasters in turn, whatever the year. */
++	if (const char *list = std::getenv("OTTD_FX_DISASTERS"); list != nullptr && *list != '\0') {
++		static uint next = 0;
++		std::vector<int> ids{0};
++		for (const char *p = list; *p != '\0'; p++) {
++			if (*p == ',') ids.push_back(0);
++			if (*p >= '0' && *p <= '9') ids.back() = ids.back() * 10 + (*p - '0');
++		}
++		_disasters[ids[next++ % ids.size()] % std::size(_disasters)].init_proc();
++		return;
++	}
++
+ 	available_disasters[RandomRange(static_cast<uint32_t>(available_disasters.size()))]();
+ }
+ 
+@@ -968,6 +980,11 @@ static void DoDisaster()
+ static void ResetDisasterDelay()
+ {
+ 	_disaster_delay = GB(Random(), 0, 9) + 730;
++	if (const char *days = std::getenv("OTTD_FX_DISASTER_DAYS"); days != nullptr) {
++		_disaster_delay = 0;
++		for (const char *p = days; *p >= '0' && *p <= '9'; p++) _disaster_delay = _disaster_delay * 10 + (*p - '0');
++		_disaster_delay = std::max<uint16_t>(_disaster_delay, 1);
++	}
+ }
+ 
+ /** Daily trigger to check whether to add a new disaster. */
