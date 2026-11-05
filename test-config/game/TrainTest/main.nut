@@ -115,8 +115,13 @@ function TrainTest::BuildLoop(rt, x0, y0, x1, y1, h)
 
 	local engines = [], wagons = [];
 	foreach (e, _ in GSEngineList(GSVehicle.VT_RAIL)) {
-		if (!GSEngine.IsBuildable(e) || GSEngine.GetRailType(e) != rt) continue;
-		if (GSEngine.IsWagon(e)) wagons.append(e); else engines.append(e);
+		if (!GSEngine.IsBuildable(e)) continue;
+		/* Electric trains pull the plain rail wagons. */
+		if (GSEngine.IsWagon(e)) {
+			if (GSEngine.GetRailType(e) == (rt == 1 ? 0 : rt)) wagons.append(e);
+		} else if (GSEngine.GetRailType(e) == rt) {
+			engines.append(e);
+		}
 	}
 	/* Industries for the wagons' cargo round station A (inside the loop and north of it). */
 	local built = {};
