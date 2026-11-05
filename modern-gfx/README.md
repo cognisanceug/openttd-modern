@@ -118,9 +118,10 @@ font completes the look, e.g. in `openttd.cfg` under `[misc]`:
 `large_font = AvenirNext-DemiBold`, `prefer_sprite_font = false`.
 
 `nml/modern_gui.grf` is a separate NewGRF for interface graphics; it holds the
-title screen logo, set by `tools/make_logo.py`, and the toolbar icons, flat
-symbols in the colours of the set drawn by `tools/make_icons.py` (so far pause,
-fast forward, settings, save, map, town, build rail and build road). The title game tries
+title screen logo, set by `tools/make_logo.py`, and the 36 main toolbar icons
+plus the minimap buttons, flat symbols in the colours of the set drawn by
+`tools/make_icons.py`. In the modern style the toolbar's red separators are
+dark slate. The title game tries
 `baseset/opntitle_modern.dat` first, a town scene that needs Modern Terrain
 and Modern Interface enabled for new games; without them the default
 `opntitle.dat` is shown.

@@ -28,12 +28,27 @@ LOGO_BLOCKS = (
 
 # (block name, NML block header, icon names in sprite order)
 ICON_BLOCKS = (
+    ("icon_subsidies_messages", "replace {name}(679, {file})", ["subsidies", "messages"]),
+    ("icon_league", "replace {name}(684, {file})", ["league"]),
     ("icon_smallmap", "replace {name}(708, {file})", ["smallmap"]),
+    ("icon_music", "replace {name}(713, {file})", ["music"]),
+    ("icon_query", "replace {name}(723, {file})", ["query"]),
     ("icon_save", "replace {name}(724, {file})", ["save"]),
-    ("icon_pause_rail_road", "replace {name}(726, {file})", ["pause", "buildrail", "buildroad"]),
+    ("icon_toolbar", "replace {name}(726, {file})",
+     ["pause", "buildrail", "buildroad", "buildwater", "buildair", "trainlist", "trucklist", "shiplist",
+      "planelist", "zoomin", "zoomout", "finance", "contours", "vehicles", "routes", "industry", "planttrees",
+      "company"]),
+    ("icon_graphs", "replace {name}(745, {file})", ["graphs"]),
     ("icon_settings", "replace {name}(751, {file})", ["settings"]),
+    ("icon_companylist", "replace {name}(1299, {file})", ["companylist"]),
     ("icon_town", "replace {name}(4077, {file})", ["town"]),
+    ("icon_sign_landscaping", "replace {name}(4082, {file})", ["sign", "landscaping"]),
+    ("icon_transmitter", "replace {name}(4086, {file})", ["transmitter"]),
     ("icon_fastforward", "replacenew {name}(OTTD_GUI, {file}, 90)", ["fastforward"]),
+    ("icon_switchtoolbar", "replacenew {name}(OTTD_GUI, {file}, 144)", ["switchtoolbar"]),
+    ("icon_storybook", "replacenew {name}(OTTD_GUI, {file}, 169)", ["storybook"]),
+    ("icon_goal", "replacenew {name}(OTTD_GUI, {file}, 171)", ["goal"]),
+    ("icon_buildtrams", "replacenew {name}(OTTD_GUI, {file}, 179)", ["buildtrams"]),
 )
 
 

@@ -1499,10 +1499,15 @@ public:
 
 	void Draw(const Window *w) override
 	{
-		/* Draw brown-red toolbar bg. */
 		const Rect r = this->GetCurrentRect();
-		GfxFillRect(r, PC_VERY_DARK_RED);
-		GfxFillRect(r, PC_DARK_RED, FillRectMode::Checker);
+		if (_settings_client.gui.modern_ui) {
+			/* Plain dark slate between the button groups. */
+			GfxFillRect(r, GetWindowColour(Colours::Grey, Shade::Darker));
+		} else {
+			/* Draw brown-red toolbar bg. */
+			GfxFillRect(r, PC_VERY_DARK_RED);
+			GfxFillRect(r, PC_DARK_RED, FillRectMode::Checker);
+		}
 
 		this->NWidgetContainer::Draw(w);
 	}
