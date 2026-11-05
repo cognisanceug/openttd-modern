@@ -9,9 +9,9 @@ Currently covered (temperate):
 | Sprites   | Content |
 |-----------|---------|
 | 3924–4060 | ground: bare soil, 1/3 and 2/3 grass, grass, rough land (+4 flat variants), two rocky sets |
-| 4061      | open water (sea, lakes) |
+| 4061      | open water (sea, lakes, canals) |
 | Action 5 `COAST_TILES_DIAGONAL` | all 18 shore shapes: water, foam line, beach, meadow by height |
-| Action 5 `CANALS` 0–3 | river slopes – not visible yet: OpenGFX draws rivers through its own canal feature, which takes precedence |
+| `FEAT_CANALS` `WF_RIVER_SLOPE`, `WF_RIVERBANKS` | rivers: flat water + 4 slopes, and 60 bank pieces (sides, outer/inner corners, flat and sloped); our own definitions replace OpenGFX's |
 | Action 5 `OVERLAY_ROCKS` 95–113 | rocks on water and coast |
 | 990–1003, Action 5 `FOUNDATIONS_SLOPES_HALFTILES` | all foundations: leveled, inclined, halftile; stone walls, coping on back edges |
 | 1576–1715 | all 20 temperate tree bases × 7 growth stages (17 species; 0x6AD repeats the spruce like OpenGFX) |

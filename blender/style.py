@@ -164,6 +164,36 @@ def shore_material(water_path, sand_path, grass_path):
     return mat
 
 
+def bank_material(image_path):
+    """River bank piece: RGBA image in tile space (no repeat), ground-shaded, transparent where the image is."""
+    mat = bpy.data.materials.new("bank")
+    mat.use_nodes = True
+    nt = mat.node_tree
+    nt.nodes.clear()
+    out = nt.nodes.new("ShaderNodeOutputMaterial")
+    em = nt.nodes.new("ShaderNodeEmission")
+    nt.links.new(_lum_strength(nt, **GROUND), em.inputs["Strength"])
+    geo = nt.nodes.new("ShaderNodeNewGeometry")
+    mapping = nt.nodes.new("ShaderNodeMapping")
+    mapping.inputs["Location"].default_value = (0.5, 0.5, 0.0)
+    mapping.inputs["Scale"].default_value = (1.0, 1.0, 0.0)
+    tex = nt.nodes.new("ShaderNodeTexImage")
+    tex.image = bpy.data.images.load(image_path, check_existing=True)
+    tex.image.colorspace_settings.name = "sRGB"
+    tex.image.alpha_mode = "STRAIGHT"
+    tex.extension = "EXTEND"
+    tex.interpolation = "Linear"
+    nt.links.new(geo.outputs["Position"], mapping.inputs["Vector"])
+    nt.links.new(mapping.outputs["Vector"], tex.inputs["Vector"])
+    nt.links.new(tex.outputs["Color"], em.inputs["Color"])
+    mix = nt.nodes.new("ShaderNodeMixShader")
+    nt.links.new(tex.outputs["Alpha"], mix.inputs["Fac"])
+    nt.links.new(nt.nodes.new("ShaderNodeBsdfTransparent").outputs[0], mix.inputs[1])
+    nt.links.new(em.outputs["Emission"], mix.inputs[2])
+    nt.links.new(mix.outputs[0], out.inputs["Surface"])
+    return mat
+
+
 def wall_material(stone_path):
     """Foundation wall: stone texture with U = x + y along the wall and V = one repeat per height level.
 

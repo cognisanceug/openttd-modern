@@ -6,10 +6,13 @@ four flat variants, two rocky sets): colour from <sprite>_color.png, alpha from 
 binary <sprite>_mask.png so neighbouring tiles meet without seams; crop box
 and offsets are the OpenTTD 1x values times the zoom factor.
 
-Water (same treatment as ground): open water 4061, the 18 shore shapes as an
-Action 5 COAST_TILES_DIAGONAL block (all 18, so OpenTTD uses only ours) and the four
-river slopes as the first sprites of the Action 5 CANAL block. Their crop box
-comes from the grass sprite with the same slope. Coast rocks are an overlay
+Water (same treatment as ground): open water 4061 and the 18 shore shapes as
+an Action 5 COAST_TILES_DIAGONAL block (all 18, so OpenTTD uses only ours);
+their crop box comes from the grass sprite with the same slope.
+Rivers are defined as our own canal-feature items, because OpenGFX draws them
+that way and a definition takes precedence over plain sprites: WF_RIVER_SLOPE
+(flat water + slopes SE, NE, SW, NW) and WF_RIVERBANKS (60 bank pieces, alpha
+from the rendered bank times the tile mask, cropped like overlays). Coast rocks are an overlay
 (Action 5 OVERLAY_ROCKS from offset 95, 19 slopes) cropped to their visible
 pixels, with the same drawing origin as the ground tiles.
 
@@ -54,8 +57,8 @@ RIVER_SLOPES = (6, 12, 3, 9)
 WATER_BLOCKS = (
     ("water_flat", "replace {name}(4061, {file})", [(4061, 0)]),
     ("water_shore", "replacenew {name}(COAST_TILES_DIAGONAL, {file})", [(f"shore{i}", s) for i, s in enumerate(SHORE_SLOPES)]),
-    ("water_river", "replacenew {name}(CANALS, {file}, 0)", [(f"river{i}", s) for i, s in enumerate(RIVER_SLOPES)]),
 )
+BANK_SLOPES = (0, 6, 12, 3, 9)  # bank variants: flat, SE, NE, SW, NW
 COAST_ROCKS_OFFSET = 95  # SPR_OVERLAY_ROCKS_WATER_COAST - SPR_OVERLAY_ROCKS_BASE
 # (block name, first sprite, first rendered sprite)
 TREE_BLOCKS = tuple((f"tree_{b:x}", b, 1597 if b == 0x6AD else b) for b in range(0x628, 0x6AD + 1, 7))
@@ -110,6 +113,19 @@ def overlay_sprite(render_dir, name, zoom):
         return Image.new("RGBA", (1, 1), (0, 0, 0, 0)), 0, 0
     left, top, right, bottom = box
     return im.crop(box), left - 31 * zoom, top - GROUND_ANCHOR_Y * zoom
+
+
+def bank_sprite(render_dir, name, slope, zoom):
+    """River bank piece: rendered alpha cut by the binary tile mask, cropped to visible pixels."""
+    im = Image.open(os.path.join(render_dir, f"z{zoom}", f"{name}_color.png")).convert("RGBA")
+    mask = Image.open(os.path.join(render_dir, f"z{zoom}", f"{name}_mask.png")).convert("RGBA").getchannel("A")
+    cut = Image.eval(mask, lambda a: 255 if a >= 128 else 0)
+    alpha = Image.composite(im.getchannel("A"), Image.new("L", im.size, 0), cut)
+    im.putalpha(alpha.point(lambda v: v if v >= 4 else 0))
+    box = im.getchannel("A").getbbox()
+    if box is None:
+        return Image.new("RGBA", (1, 1), (0, 0, 0, 0)), 0, 0
+    return im.crop(box), box[0] - 31 * zoom, box[1] - GROUND_ANCHOR_Y * zoom
 
 
 def tree_sprite(render_dir, sprite, zoom):
@@ -178,6 +194,19 @@ def main():
         refs = [meta[str(3981 + SPRITE_SLOPES.index(slope))] for _, slope in items]
         tiles = {z: [ground_sprite(ground_dir, n, z, ref) for (n, _), ref in zip(items, refs)] for z in ZOOMS}
         nml.append(sheet_block(name, header, [n for n, _ in items], tiles, gfx_dir))
+    # Rivers: our own canal-feature definitions replace OpenGFX's.
+    slope_items = [(4061, 0)] + [(f"river{i}", sl) for i, sl in enumerate(RIVER_SLOPES)]
+    tiles = {z: [ground_sprite(ground_dir, n, z, meta[str(3981 + SPRITE_SLOPES.index(sl))]) for n, sl in slope_items]
+             for z in ZOOMS}
+    nml.append(sheet_block("river_slopes", "spriteset({name}, {file})", [n for n, _ in slope_items], tiles, gfx_dir))
+    nml.append("item(FEAT_CANALS, river_slope_item, WF_RIVER_SLOPE) {\n"
+               "    property { graphic_flags: 1; }  // first sprite is flat water\n"
+               "    graphics { river_slopes; }\n}\n")
+    banks = [(f"bank{v * 12 + k}", sl) for v, sl in enumerate(BANK_SLOPES) for k in range(12)]
+    pieces = {z: [bank_sprite(ground_dir, n, sl, z) for n, sl in banks] for z in ZOOMS}
+    nml.append(sheet_block("river_banks", "spriteset({name}, {file})", [n for n, _ in banks], pieces, gfx_dir))
+    nml.append("item(FEAT_CANALS, river_bank_item, WF_RIVERBANKS) {\n"
+               "    graphics { river_banks; }\n}\n")
     names = [f"coastrock{k}" for k in range(len(SPRITE_SLOPES))]
     rocks = {z: [overlay_sprite(ground_dir, n, z) for n in names] for z in ZOOMS}
     nml.append(sheet_block("water_coast_rocks", f"replacenew {{name}}(OVERLAY_ROCKS, {{file}}, {COAST_ROCKS_OFFSET})",

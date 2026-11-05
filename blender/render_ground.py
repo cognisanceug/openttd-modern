@@ -16,6 +16,9 @@ Water kinds (output files are named after the sprite slot, not a base sprite):
   river    river0-3  first four sprites of the Action 5 CANAL block: river slopes
   coastrocks coastrock0-18  overlay rocks on water and coast (Action 5 OVERLAY_ROCKS,
            offset 95), in slope order; rendered without the tile, which only occludes
+  riverbank bank0-59 river edges for our own canal-feature definition: 12 pieces
+           (sides NE, SE, SW, NW; outer and inner corners E, S, W, N) for flat
+           river tiles and for the slopes SE, NE, SW, NW (offsets 0/12/24/36/48)
 
 Styles: "calibration" is a lit 8x8 checker for checking geometry and seams;
 "modern" uses the textures from tools/make_ground_textures.py (render/textures)
@@ -59,7 +62,8 @@ KINDS = {
     "rocky2": (4042, "rocky", "rocks"),
 }
 ROUGH_FLAT_VARIANTS = (4019, 4020, 4021, 4022)
-WATER_KINDS = ("water", "shore", "river", "coastrocks")
+WATER_KINDS = ("water", "shore", "river", "coastrocks", "riverbank")
+BANK_SLOPES = (0, 6, 12, 3, 9)  # flat, SE, NE, SW, NW as in DrawRiverWater()
 WET_ROCK_COLORS = ((112, 112, 108), (128, 126, 120), (100, 104, 104))
 # Shore sprite index -> slope (inverse of tileh_to_shoresprite in water_cmd.cpp).
 SHORE_SLOPES = (0x17, 1, 2, 3, 4, 0x1B, 6, 7, 8, 9, 0x1D, 11, 12, 13, 14, 0x1E, 5, 10)
@@ -94,6 +98,9 @@ def jobs(kinds):
             continue
         if kind == "coastrocks":
             out += [(f"coastrock{i}", slope, kind, 7000 + i) for i, slope in enumerate(oc.SPRITE_SLOPES)]
+            continue
+        if kind == "riverbank":
+            out += [(f"bank{v * 12 + k}", slope, kind, k) for v, slope in enumerate(BANK_SLOPES) for k in range(12)]
             continue
         first = KINDS[kind][0]
         out += [(first + k, slope, kind, first + k) for k, slope in enumerate(oc.SPRITE_SLOPES)]
@@ -275,7 +282,7 @@ def render_coast_rocks(outdir, name, slope, seed, zoom):
     render(scene, os.path.join(outdir, f"z{zoom}", f"{name}_overlay.png"))
 
 
-def ground_material(kind):
+def ground_material(kind, piece=None):
     tex = lambda name: os.path.join(TEXTURES, name + ".png")  # noqa: E731
     if kind == "water":
         return st.toon_material("water", image_path=tex("water"), params=st.FLAT)
@@ -283,6 +290,8 @@ def ground_material(kind):
         return st.toon_material("river", image_path=tex("water"), params=st.GROUND)
     if kind == "shore":
         return st.shore_material(tex("water"), tex("sand"), tex("grass"))
+    if kind == "riverbank":
+        return st.bank_material(tex(f"riverbank{piece}"))
     return st.toon_material("ground", image_path=tex(KINDS[kind][1]), params=st.GROUND)
 
 
@@ -372,7 +381,7 @@ def main():
             oc.setup_camera(scene, zoom, size, size)
             obj = build_tile(slope, COLOR_OVERSCAN)
             if style == "modern":
-                obj.data.materials.append(ground_material(kind))
+                obj.data.materials.append(ground_material(kind, seed))
                 add_scatter(kind, slope, seed)
             else:
                 add_calibration_lighting(scene)
