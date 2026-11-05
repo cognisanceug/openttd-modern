@@ -1,4 +1,4 @@
-"""Packing of objects and industries (render_objects.py, render_industries.py) for pack_grf.py.
+"""Packing of objects and industries of all climates (render_objects.py, render_industries.py) for pack_grf.py.
 
 Building sprites are the rendered building with its cast shadow under it,
 cropped; origin (47z, 136z) is the bounding box origin. Ground sprites are
@@ -79,35 +79,65 @@ def object_blocks(render_dir, gfx_dir, sheet_block):
     return out
 
 
-# Transformer sparks: child sprites of 2054 at these offsets from its top-left (table/industry_land.h).
+# Child sprites: (parent sprite, offset from the parent's top-left) as the draw procs add them
+# (table/industry_land.h, industry_cmd.cpp). The transformer sparks (s<sprite>) are child sprites
+# of 2054; the toyland ones (c<sprite>) are modelled at their reference offset (industry_toyland.CHILDREN).
 COAL_PLANT_SPARKS = {2055: (11, 23), 2056: (11, 11), 2057: (14, 6), 2058: (13, 3), 2059: (18, 1), 2060: (15, 0)}
+CHILDREN = {
+    **{n: (2054, xy) for n, xy in COAL_PLANT_SPARKS.items()},
+    4717: (4713, (0, 42)), 4718: (4713, (7, 0)), 4719: (4713, (50, 96)), 4720: (4713, (16, 100)),
+    4747: (4745, (5, 86)), 4766: (4764, (6, 14)), 4767: (4764, (22, 24)),
+    **{n: (4773, (8, 0)) for n in range(4775, 4780)},
+    **{n: (4773, xy) for n, xy in zip(range(4780, 4784), ((22, 73), (17, 70), (14, 69), (10, 66)))},
+    **{n: (4773, (8, 41)) for n in range(4784, 4790)},
+}
+# The plastic fountain's eight grounds are one render.
+ALIASES = {n: 4721 for n in range(4722, 4729)}
+# Variants of sprites a climate shares with temperate (render_industries.py --climate).
+CLIMATES = (("arctic", "CLIMATE_ARCTIC"), ("tropic", "CLIMATE_TROPICAL"), ("toyland", "CLIMATE_TOYLAND"))
 
 
-def industry_blocks(render_dir, gfx_dir, sheet_block):
-    """Replace blocks for every run of consecutive industry sprites we rendered."""
-    ind_dir = os.path.join(render_dir, "industries")
+def _industry_runs(ind_dir, base_dir, gfx_dir, sheet_block, prefix):
     names = os.listdir(os.path.join(ind_dir, "z1"))
     builds = {int(n[1:].split("_")[0]) for n in names if n.startswith("b")}
     grounds = {int(n[1:].split("_")[0]) for n in names if n.startswith("g")}
-    sparks = {int(n[1:].split("_")[0]) for n in names if n.startswith("s")}
+    children = {int(n[1:].split("_")[0]) for n in names if n[0] in "sc"}
+    aliases = {n for n, a in ALIASES.items() if a in grounds}
 
     def sprite(n, z):
         if n in builds:
             return building_sprite(ind_dir, f"b{n}", z)
-        if n in grounds:
-            return ground_sprite(ind_dir, f"g{n}", z)
-        im, x, y, mask = building_sprite(ind_dir, f"s{n}", z)
-        _, px, py, _ = building_sprite(ind_dir, "b2054", z)
-        sx, sy = COAL_PLANT_SPARKS[n]
+        if n in grounds or n in aliases:
+            return ground_sprite(ind_dir, f"g{ALIASES.get(n, n)}", z)
+        name = f"s{n}" if n in COAL_PLANT_SPARKS else f"c{n}"
+        im, x, y, mask = building_sprite(ind_dir, name, z)
+        parent, (sx, sy) = CHILDREN[n]
+        _, px, py, _ = building_sprite(base_dir, f"b{parent}", z)
         return im, x - px - sx * z, y - py - sy * z, mask
 
-    ids = sorted(builds | grounds | sparks)
+    ids = sorted(builds | grounds | children | aliases)
     runs = []
     for n in ids:
         if runs and n == runs[-1][-1] + 1:
             runs[-1].append(n)
         else:
             runs.append([n])
-    return [sheet_block(f"industry_{run[0]}", "replace {name}(%d, {file})" % run[0], run,
+    return [sheet_block(f"{prefix}_{run[0]}", "replace {name}(%d, {file})" % run[0], run,
                         {z: [sprite(n, z) for n in run] for z in ZOOMS}, gfx_dir, mask_index=COMPANY_INDEX)
             for run in runs]
+
+
+def industry_blocks(render_dir, gfx_dir, sheet_block):
+    """Replace blocks for every run of consecutive industry sprites we rendered.
+
+    The climate variants follow the unconditional blocks inside if (climate == ...),
+    so they replace the temperate sprites only in their climate.
+    """
+    ind_dir = os.path.join(render_dir, "industries")
+    out = _industry_runs(ind_dir, ind_dir, gfx_dir, sheet_block, "industry")
+    for name, const in CLIMATES:
+        cdir = os.path.join(render_dir, f"industries_{name}")
+        if os.path.isdir(cdir):
+            blocks = _industry_runs(cdir, ind_dir, gfx_dir, sheet_block, f"industry_{name}")
+            out.append(f"if (climate == {const}) {{\n" + "\n".join(blocks) + "}\n")
+    return out
