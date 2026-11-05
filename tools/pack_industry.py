@@ -1,4 +1,4 @@
-"""Packing of objects (render_objects.py) for pack_grf.py.
+"""Packing of objects and industries (render_objects.py, render_industries.py) for pack_grf.py.
 
 Building sprites are the rendered building with its cast shadow under it,
 cropped; origin (47z, 136z) is the bounding box origin. Ground sprites are
@@ -12,6 +12,7 @@ import os
 from PIL import Image
 
 SHADOW_RGB = (24, 40, 34)
+COMPANY_INDEX = 202  # recolour masks mark the company-colour range (company or industry random colour)
 SHADOW_ALPHA = 0.22
 ZOOMS = (1, 2, 4)
 
@@ -71,8 +72,42 @@ def object_blocks(render_dir, gfx_dir, sheet_block):
             return building_sprite(obj_dir, f"o{n}", z)
         return ground_sprite(obj_dir, f"o{n}", z)
     out = [sheet_block("objects", "replace {name}(2601, {file})", list(range(2601, 2633)),
-                       {z: [sprite(n, z) for n in range(2601, 2633)] for z in ZOOMS}, gfx_dir)]
+                       {z: [sprite(n, z) for n in range(2601, 2633)] for z in ZOOMS}, gfx_dir,
+                       mask_index=COMPANY_INDEX)]
     out.append(sheet_block("owned_land", "replace {name}(4790, {file})", [4790],
-                           {z: [sprite(4790, z)] for z in ZOOMS}, gfx_dir))
+                           {z: [sprite(4790, z)] for z in ZOOMS}, gfx_dir, mask_index=COMPANY_INDEX))
     return out
 
+
+# Transformer sparks: child sprites of 2054 at these offsets from its top-left (table/industry_land.h).
+COAL_PLANT_SPARKS = {2055: (11, 23), 2056: (11, 11), 2057: (14, 6), 2058: (13, 3), 2059: (18, 1), 2060: (15, 0)}
+
+
+def industry_blocks(render_dir, gfx_dir, sheet_block):
+    """Replace blocks for every run of consecutive industry sprites we rendered."""
+    ind_dir = os.path.join(render_dir, "industries")
+    names = os.listdir(os.path.join(ind_dir, "z1"))
+    builds = {int(n[1:].split("_")[0]) for n in names if n.startswith("b")}
+    grounds = {int(n[1:].split("_")[0]) for n in names if n.startswith("g")}
+    sparks = {int(n[1:].split("_")[0]) for n in names if n.startswith("s")}
+
+    def sprite(n, z):
+        if n in builds:
+            return building_sprite(ind_dir, f"b{n}", z)
+        if n in grounds:
+            return ground_sprite(ind_dir, f"g{n}", z)
+        im, x, y, mask = building_sprite(ind_dir, f"s{n}", z)
+        _, px, py, _ = building_sprite(ind_dir, "b2054", z)
+        sx, sy = COAL_PLANT_SPARKS[n]
+        return im, x - px - sx * z, y - py - sy * z, mask
+
+    ids = sorted(builds | grounds | sparks)
+    runs = []
+    for n in ids:
+        if runs and n == runs[-1][-1] + 1:
+            runs[-1].append(n)
+        else:
+            runs.append([n])
+    return [sheet_block(f"industry_{run[0]}", "replace {name}(%d, {file})" % run[0], run,
+                        {z: [sprite(n, z) for n in run] for z in ZOOMS}, gfx_dir, mask_index=COMPANY_INDEX)
+            for run in runs]
