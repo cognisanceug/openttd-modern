@@ -54,6 +54,8 @@ Catenary: rail wires and pylons (CATENARY 0-35); trams: track overlays
 poles 84-94 with a company-colour band; tram stops 23-26, depots 49-54 and 113-118,
 tunnel wires 80-83, bridge wires 95-106 and tram-only bridge decks 107-112 (tram_extra_blocks).
 
+One-way road markers: Action 5 ONE_WAY_ROAD, drawn at the tile centre (oneway_block).
+
 Usage: pack_grf.py <render-dir> <ref/ground> <nml-dir>
   (render-dir holds ground/, trees/, foundations/, fences/, signals/, depots/, bridges/, tunnels/)
 """
@@ -279,6 +281,22 @@ def tram_extra_blocks(render_dir, gfx_dir):
     return "\n".join(out)
 
 
+def oneway_block(render_dir, gfx_dir):
+    """One-way road markers (Action 5 ONE_WAY_ROAD, 18 sprites); returns NML text.
+
+    The game draws them at the tile centre at the height of the surface there
+    (DrawGroundSpriteAt(.., 8, 8, GetPartialPixelZ(8, 8))): 0 on flat tiles,
+    half a level (4 px) on the inclined road slopes of the second and third sets.
+    """
+    ground_dir = os.path.join(render_dir, "ground")
+
+    def marker(k, zoom):
+        im, xo, yo = bank_sprite(ground_dir, f"oneway{k}", 0, zoom)
+        return im, xo, yo - (16 - (0 if k < 6 else 4)) * zoom
+    return sheet_block("oneway_roads", "replacenew {name}(ONE_WAY_ROAD, {file})", [f"oneway{k}" for k in range(18)],
+                       {z: [marker(k, z) for k in range(18)] for z in ZOOMS}, gfx_dir)
+
+
 def main():
     render_dir, ref_dir, nml_dir = sys.argv[1:4]
     ground_dir, trees_dir, found_dir, fence_dir, signal_dir, depot_dir = (
@@ -407,6 +425,7 @@ def main():
     nml.append(sheet_block("tram_wires_back", "replacenew {name}(TRAMWAY, {file}, 84)", list(range(84, 95)),
                            {z: [cat(f"tram_{k}", z) for k in range(84, 95)] for z in ZOOMS}, gfx_dir))
     nml.append(tram_extra_blocks(render_dir, gfx_dir))
+    nml.append(oneway_block(render_dir, gfx_dir))
     fences = {z: [overlay_sprite(fence_dir, f"fence{n}", z) for n in range(1301, 1309)] for z in ZOOMS}
     nml.append(sheet_block("track_fences", "replace {name}(1301, {file})", list(range(1301, 1309)), fences, gfx_dir))
     for name, header, names in (

@@ -21,11 +21,15 @@ import style as st  # noqa: E402
 INFRA_TEX = os.path.join(rg.TEXTURES, "infra")
 # Bridge road-bits offset -> slope: flat Y, flat X, ramps NE, SE, SW, NW.
 DECK_SLOPES = (0, 0, 12, 6, 3, 9)
+# One-way markers: slope set (flat, ONEWAY_SLOPE_N, ONEWAY_SLOPE_S) -> slope for road X, road Y.
+ONEWAY_SLOPES = ((0, 0), (12, 9), (3, 6))
 
 
 def jobs():
     """(name, slope, overlay) for every sprite."""
-    return [(f"tramdeck{107 + k}", s, True) for k, s in enumerate(DECK_SLOPES)]
+    out = [(f"tramdeck{107 + k}", s, True) for k, s in enumerate(DECK_SLOPES)]
+    out += [(f"oneway{k}", ONEWAY_SLOPES[k // 6][k % 6 // 3], True) for k in range(18)]
+    return out
 
 
 def main():
