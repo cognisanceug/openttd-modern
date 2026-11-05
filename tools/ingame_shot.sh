@@ -12,12 +12,12 @@
 #   LOAD    load this savegame instead of generating a map
 #   CLIMATE=toyland (or arctic, tropic) generates the map in that climate; it passes through
 #               infra_shot.sh, water_shot.sh and airport_shot.sh, so their test scripts build there.
-#   YEAR=n      sets the start year of a generated map (aircraft_shot.sh passes it through).
+#   YEAR=n      sets the start year of a generated map (aircraft_shot.sh and train_shot.sh pass it through).
 #   SHOT=big renders at the max zoom-in (4x), SHOT=normal always at 1x.
 #   ZOOM=2 caps the zoom-in at 2x, so SHOT=big shows the 2x sprites.
 #   The view cannot be scrolled from the start script (the viewport is placed
 #   afterwards), so pick the map with SEED instead (5: trees, 1: rocks).
-#   LOG=file    writes the game script log there.
+#   LOG=file    writes the game's output with the game script log (-d script=4) to file.
 #   OTTD=path   runs another build (tools/fx_shot.sh: one with tools/disaster_test.patch).
 #   keep: leave the game window open instead of quitting.
 # The test home (test-home/) is rebuilt from test-config/ on every run; OpenGFX
