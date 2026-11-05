@@ -38,6 +38,7 @@ Currently covered (temperate):
 | 1420–1575, 4404–4417 | all 31 temperate town houses (52 variants incl. the 2×2 stadiums and shopping mall and the 1×2 hotel), with their grounds (lawn with hedge and path, paving, construction site, pitches) and construction stages (foundations, walls with scaffolding); recolourable facades keep their `PALETTE_TO_STRUCT_*` variants via a structure recolour mask; the office block lift (1443) |
 | Action 5 `ONE_WAY_ROAD` | one-way markers: a white arrow in each lane (no-entry bars when both directions are closed), flat and on inclined roads |
 | 1576–1715 | all 20 temperate tree bases × 7 growth stages (17 species; 0x6AD repeats the spruce like OpenGFX) |
+| 2601–2632, 4790 | objects: transmitter, lighthouse, company statue, owned-land flag, company HQ in all 5 sizes (see *Objects and industries*) |
 
 Every sprite ships as 8bpp fallback plus 32bpp at 1x, 2x and 4x.
 
@@ -91,6 +92,7 @@ $B -b --factory-startup -P blender/render_canals.py -- render/canals     # locks
 $B -b --factory-startup -P blender/render_aqueducts.py -- render/aqueducts
 .venv/bin/python tools/make_transport_textures.py render/textures render/textures/infra   # tram decks, ...
 $B -b --factory-startup -P blender/render_infra_extra.py -- render/ground   # sprites from those textures
+$B -b --factory-startup -P blender/render_objects.py -- render/objects
 .venv/bin/python tools/check_calibration.py render/ground ref/ground
 .venv/bin/python tools/preview_tiling.py render/ground ref/ground render/preview_rocky_area.png rocky 2 12   # big area, variants as in game
 .venv/bin/python tools/pack_grf.py render ref/ground nml
@@ -109,6 +111,7 @@ SEED=1 SIZE="4800 3200" tools/infra_shot.sh infra_4x   # InfraTest builds rails,
 SEED=3 tools/ingame_shot.sh arctic arctic_4x     # snow; tropic: desert
 LOAD="$PWD/test-home/terrain_test.sav" ZOOM=2 tools/ingame_shot.sh modern terrain_2x   # 2x sprites
 SEED=5 tools/terrain_shot.sh terrain_4x   # TerrainTest funds farms and clears a row of land every 8 days: fields, fences, bare soil -> grass (~3 min)
+tools/industry_shot.sh objects_4x    # IndustryTest builds HQ, statue, owned land and every industry (two waves: complete and under construction)
 ```
 
 Most render scripts take `--only prefix,prefix` to re-render a subset.
@@ -172,3 +175,18 @@ structure recolour mask as the bridges (index 75 is a brick red, so the plain
 variant keeps a brick facade). Grounds are tile-space textures
 (tools/make_house_textures.py) laid on the flat tile; buildings cast a soft
 shadow onto their own tile.
+
+## Objects
+
+Objects (`blender/render_objects.py`) are built from the low-poly kit in
+`blender/build_kit.py`: boxes, prisms, lathes, rods, roofs and window rows in
+OpenTTD units (x, y 0–16 per tile, z in height units, 8 per level). Building
+sprites are anchored at the bounding box origin of `table/object_land.h` and
+carry their cast shadow like the town houses; ground sprites are the flat
+tile with decals and the low parts standing on it. The HQ (all of its
+sprites, grounds included), the statue and the owned-land flag carry a
+company-colour mask on fascias, flags and the statue's figure.
+
+The tiny and small HQs live entirely in ground sprites (as in the original) and
+stay low; medium to huge HQs put the building into the N, E and W tiles' full-tile
+boxes, the S tile is a forecourt.

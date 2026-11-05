@@ -35,6 +35,8 @@ HOME="$H" ../build/openttd -c "$T/$1.cfg" $start -s null -m null >/dev/null 2>&1
 pid=$!
 i=0
 while [ ! -s "$T/screenshot/$2.png" ] && [ $i -lt 120 ]; do perl -e 'select(undef,undef,undef,0.5)'; i=$((i+1)); done
-perl -e 'select(undef,undef,undef,1)'
+# Large shots take a while to write: wait until the file stops growing.
+size=-1
+while [ "$(wc -c < "$T/screenshot/$2.png")" != "$size" ]; do size="$(wc -c < "$T/screenshot/$2.png")"; perl -e 'select(undef,undef,undef,1)'; done
 mkdir -p shots && cp "$T/screenshot/$2.png" shots/
 if [ "$3" = keep ]; then echo "game left running (pid $pid)"; else kill $pid; fi
