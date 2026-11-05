@@ -1,6 +1,6 @@
-"""Render the rail and road bridge sprites (2437-2580) at zoom 1x, 2x and 4x.
+"""Render the rail, road, monorail and maglev bridge sprites (2437-2580, 2581-2620, 4324-4403) at zoom 1x, 2x and 4x.
 
-Run:  Blender -b --factory-startup -P render_bridges.py -- <outdir> [<ref/bridges/usage.json>] [--families a,b]
+Run:  Blender -b --factory-startup -P render_bridges.py -- <outdir> [<ref/bridges/usage.json>] [--families a,b] [--transports a,b]
 
 usage.json (built from table/bridge_land.h) tells for every sprite how the game
 uses it: bridge head (direction, ramp or flat) or middle element (back = deck
@@ -321,7 +321,8 @@ def head(b, transport, fam, direction, ramp):
 def build(sprite, uses, cc_pass):
     fam = family_of(uses)
     u = next((x for x in uses if x["transport"] in ("rail", "road")), uses[0])
-    transport = u["transport"] if u["transport"] in ("rail", "road") else "rail"
+    # Sprites only monorail or maglev bridges use get their deck; shared ones keep the rail deck.
+    transport = {"rail": "rail", "road": "road", "mono": "mono", "maglev": "mglv"}[u["transport"]]
     if u["kind"] == "head":
         axis = "X" if u["dir"] in ("NE", "SW") else "Y"
         b = B(axis, (0, 0), cc_pass)
@@ -349,10 +350,15 @@ def main():
     for zoom in ZOOMS:
         os.makedirs(os.path.join(outdir, f"z{zoom}"), exist_ok=True)
     families = argv[argv.index("--families") + 1].split(",") if "--families" in argv else None
+    # --transports a,b: only sprites used by nothing but these transports (rail, road, mono, maglev)
+    transports = set(argv[argv.index("--transports") + 1].split(",")) if "--transports" in argv else None
     for sid, uses in usage.items():
-        if not {x["transport"] for x in uses} & {"rail", "road"}:
+        used_by = {x["transport"] for x in uses}
+        if not used_by & {"rail", "road", "mono", "maglev"}:
             continue
         if families and family_of(uses) not in families:
+            continue
+        if transports and not used_by <= transports:
             continue
         for zoom in ZOOMS:
             for cc_pass in (False, True):
