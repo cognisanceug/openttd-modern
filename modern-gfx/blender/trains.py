@@ -750,7 +750,7 @@ def e30(k):
             k.box(a - 0.35, a + 0.35, s * 1.95 - 0.05, s * 1.95 + 0.05, 4.4, 5.6, "tr_frame")
 
 
-def hood_unit(k, cab_a, cab_len=1.6, long_hood="cc", short=True, wide=False, z_hood=6.0, z_cab=7.5, mat="cc",
+def hood_unit(k, cab_a, cab_len=1.6, long_hood="cc", wide=False, z_hood=6.0, z_cab=7.5, mat="cc",
               bogie_a=2.5, stripe="tr_warn"):
     """North American road switcher: walkway frame, low hoods, one cab at cab_a (front end +a)."""
     for a in (-bogie_a, bogie_a):
@@ -766,11 +766,12 @@ def hood_unit(k, cab_a, cab_len=1.6, long_hood="cc", short=True, wide=False, z_h
     long_ = rear if c0 - rear[0] >= front[1] - c1 else front
     if rear[1] - rear[0] > 0.4:
         hood(k, rear[0], rear[1], w, 2.4, z_hood if long_ is rear else z_hood - 0.8, long_hood)
-    if front[1] - front[0] > 0.4 and short:
+    if front[1] - front[0] > 0.4:
         if wide:
             stations(k, [(c1, 1.9, 2.4, z_hood), (HALF - 0.1, 1.85, 2.4, z_hood - 0.5)], mat, r=0.3)
         else:
-            hood(k, front[0], front[1], w, 2.4, z_hood if long_ is front else z_hood - 0.8, mat)
+            even = abs((front[1] - front[0]) - (rear[1] - rear[0])) < 0.1  # centre cab: both hoods alike
+            hood(k, front[0], front[1], w, 2.4, z_hood if long_ is front or even else z_hood - 0.8, mat)
     cw = 1.9 if wide else 1.75
     k.box(c0, c1, -cw, cw, 2.4, z_cab, mat)
     k.extrude(prof(cw + 0.1, z_cab, z_cab + 0.4, 0.8, 0.35), "x", c0 - 0.1, c1 + 0.1, "tr_roof")
@@ -778,11 +779,13 @@ def hood_unit(k, cab_a, cab_len=1.6, long_hood="cc", short=True, wide=False, z_h
         k.box(c0 + 0.2, c1 - 0.2, s * cw - 0.05, s * cw + 0.05, z_cab - 1.7, z_cab - 0.5, "tr_glass")
     end_windows(k, c1, cw, z_cab - 1.7, z_cab - 0.5, e=1)
     end_windows(k, c0, cw, z_cab - 1.7, z_cab - 0.5, e=-1)
-    for a in bk.frange(long_[0] + 0.55, long_[1] - 0.4, 0.9):
-        for s in (-1, 1):
-            k.box(a - 0.3, a + 0.3, s * w - 0.05, s * w + 0.05, z_hood - 1.6, z_hood - 0.6, "tr_frame")
-    for a in bk.frange(long_[0] + 0.75, long_[1] - 0.5, 1.6):
-        k.cyl(a, 0, 0.55, z_hood + 0.1, z_hood + 0.35, "tr_frame", n=10)  # fans
+    even = abs((front[1] - front[0]) - (rear[1] - rear[0])) < 0.1
+    for h0, h1 in [long_] + ([front] if even and long_ is rear else []):
+        for a in bk.frange(h0 + 0.55, h1 - 0.4, 0.9):
+            for s in (-1, 1):
+                k.box(a - 0.3, a + 0.3, s * w - 0.05, s * w + 0.05, z_hood - 1.6, z_hood - 0.6, "tr_frame")
+        for a in bk.frange(h0 + 0.75, h1 - 0.5, 1.6):
+            k.cyl(a, 0, 0.55, z_hood + 0.1, z_hood + 0.35, "tr_frame", n=10)  # fans
     ex = c0 - 0.7 if long_ is rear else c1 + 0.7
     k.cyl(ex, 0, 0.18, z_hood, z_hood + 0.6, "tr_black", n=8)  # exhaust stack
     lamps(k, HALF - 0.1, 0.6, 3.0)
@@ -795,7 +798,7 @@ def hood_unit(k, cab_a, cab_len=1.6, long_hood="cc", short=True, wide=False, z_h
 
 def mjs250(k):
     """Small switcher: cab at the rear, one long hood."""
-    hood_unit(k, -2.6, 1.8, short=False, z_hood=5.8, z_cab=7.2, bogie_a=2.2)
+    hood_unit(k, -2.6, 1.8, z_hood=5.8, z_cab=7.2, bogie_a=2.2)
 
 
 def cs2400(k):
@@ -814,7 +817,7 @@ def cs4000(k):
 
 def kelling(k):
     """Centre-cab freight diesel, symmetric (4 directions)."""
-    hood_unit(k, 0.0, 1.5, short=True, z_hood=5.8, z_cab=7.4)
+    hood_unit(k, 0.0, 1.5, z_hood=5.8, z_cab=7.4)
 
 
 def mjs1000(k):
