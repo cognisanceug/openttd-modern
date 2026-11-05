@@ -40,6 +40,10 @@ function InfraTest::Start()
 	Check("GSRoad.BuildRoad T(cx - 3", GSRoad.BuildRoad(T(cx - 3, cy + 2), T(cx - 3, cy + 3)));
 	Check("GSRoad.BuildRoad T(cx + 3", GSRoad.BuildRoad(T(cx + 3, cy - 2), T(cx + 4, cy - 2)));
 
+	/* One-way roads: northbound along X, southbound along Y. */
+	Check("one-way x", GSRoad.BuildOneWayRoad(T(cx + 5, cy - 4), T(cx + 2, cy - 4)));
+	Check("one-way y", GSRoad.BuildOneWayRoad(T(cx - 7, cy - 2), T(cx - 7, cy + 2)));
+
 	/* Signals of every type along the X line (electric; semaphores depend on the build date). */
 	Check("signal normal", GSRail.BuildSignal(T(cx - 4, cy), T(cx - 5, cy), GSRail.SIGNALTYPE_NORMAL));
 	Check("signal entry", GSRail.BuildSignal(T(cx - 1, cy), T(cx - 2, cy), GSRail.SIGNALTYPE_ENTRY));

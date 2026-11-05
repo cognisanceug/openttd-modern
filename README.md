@@ -29,6 +29,7 @@ Currently covered (temperate):
 | 1301–1308 | track fences: low-poly post-and-rail, flat, diagonal and sloped |
 | 1313–1350 | roads with pavements (towns) and with grass verges: 19 shapes each incl. slopes and dead ends |
 | 1370–1381 | level crossings, open and barred |
+| Action 5 `ONE_WAY_ROAD` | one-way markers: a white arrow in each lane (no-entry bars when both directions are closed), flat and on inclined roads |
 | 1576–1715 | all 20 temperate tree bases × 7 growth stages (17 species; 0x6AD repeats the spruce like OpenGFX) |
 
 Every sprite ships as 8bpp fallback plus 32bpp at 1x, 2x and 4x.
@@ -86,7 +87,7 @@ SEED=5 tools/ingame_shot.sh modern trees_4x       # -> shots/trees_4x.png
 SEED=1 tools/ingame_shot.sh modern rocks_4x keep  # leaves the window open
 SEED=2 tools/ingame_shot.sh water coast_4x        # high sea level: coast and coast rocks
 SEED=2 tools/ingame_shot.sh town town_4x          # many towns: foundations, and a river
-SEED=1 SIZE="4800 3200" tools/infra_shot.sh infra_4x   # InfraTest builds rails, roads, crossings, signals, depots, bridges, tunnels, stations, electrifies (start year 2000)
+SEED=1 SIZE="4800 3200" tools/infra_shot.sh infra_4x   # InfraTest builds rails, roads, one-way roads, crossings, signals, depots, bridges, tunnels, stations, electrifies (start year 2000)
 ```
 
 Most render scripts take `--only prefix,prefix` to re-render a subset.
