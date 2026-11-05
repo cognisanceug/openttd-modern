@@ -97,20 +97,11 @@ def main():
     size = int(sys.argv[2]) if len(sys.argv) > 2 else 512
     os.makedirs(outdir, exist_ok=True)
 
-    # Grass: same seed and draw order as the first version, so grass.png stays identical.
-    rng = random.Random(19870314)
-    octaves = [(periodic_noise(size, f, rng), w) for f, w in ((3, 0.5), (6, 0.3), (12, 0.2))]
-    dry = periodic_noise(size, 4, rng)
-    grain = periodic_noise(size, 96, rng)
+    grass_rgb = make_grass(size)
+    _save_np(grass_rgb, os.path.join(outdir, "grass.png"))
 
     def grass(x, y):
-        n = sum(o[y][x] * w for o, w in octaves)
-        c = mix(MEADOW, LUSH, smoothstep(0.42, 0.62, n) * 0.45)
-        c = mix(c, DRY, smoothstep(0.55, 0.75, dry[y][x]) * 0.35)
-        g = 1.0 + (grain[y][x] - 0.5) * 0.07
-        return [v * g for v in c]
-
-    save(grass, size, os.path.join(outdir, "grass.png"))
+        return grass_rgb[y, x].tolist()
 
     rng2 = random.Random(4242)
     soil_n = periodic_noise(size, 5, rng2)
@@ -269,6 +260,30 @@ def _meadow(vn, v, lushness):
     c = _np_mix(MEADOW, LUSH, lushness + _np_smoothstep(-0.2, 1.4, base) * 0.35)
     c = _np_mix(c, DRY, _np_smoothstep(0.6, 1.8, vn.fbm([(5, 1.0)], v, 10)) * 0.3)
     return c * (1.0 + vn.field(110, v, 20) * 0.018)[..., None]
+
+
+def make_grass(size):
+    """Meadow with lush and dry patches and a fine grain, as an RGB float array.
+
+    Flat grass is one sprite on every tile (the game has no variants for it), so
+    any feature a few tiles' worth of eye can pick out repeats in a grid. The
+    patches therefore live at 5-13 cycles per tile and are isotropic: a large
+    area reads as texture, not as a diamond checkerboard. Nothing below ~4
+    cycles per tile (the old value-noise version had two thirds of its variance
+    at 1-2 cycles per tile, one big light and one dark blob per tile).
+    """
+    import numpy as np
+
+    def fbm(octaves, seed):
+        total = sum(spectral_noise(size, f, seed + i) * w for i, (f, w) in enumerate(octaves))
+        return total / np.sqrt(sum(w * w for _, w in octaves))
+
+    lush = fbm([(5, 0.45), (8, 0.45), (13, 0.25)], 1100)
+    dry = fbm([(6, 0.6), (10, 0.4)], 1200)
+    grain = spectral_noise(size, 96, 1300, width=0.6)
+    c = _np_mix(MEADOW, LUSH, _np_smoothstep(-0.6, 1.8, lush) * 0.32)
+    c = _np_mix(c, DRY, _np_smoothstep(-0.6, 1.8, dry) * 0.44)
+    return c * (1.0 + grain * 0.02)[..., None]
 
 
 def make_rough_rocky(outdir, size):
