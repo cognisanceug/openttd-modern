@@ -56,6 +56,8 @@ Currently covered (all climates unless noted; trains and road vehicles still Ope
 | 4677–4789 | toyland industries: candyfloss forest (2072–2077, toyland only), sweet factory, battery farm, cola wells, toy shop, toy factory, plastic fountains, fizzy drink factory, bubble generator, toffee quarry, sugar mine, with the animated child sprites |
 | 3669–3700 | ships: oil tanker, cargo ship, passenger ferry, hovercraft, 8 directions each, company colour on hulls, bands and funnels; in toyland a toy cargo boat loaded with building blocks and a toy paddle steamer replace the cargo ship and ferry (see *Vehicles*) |
 | 3741–3900, 3901–3904 | aircraft: all 20 original sprite sets (piston and turboprop airliners, jets of all sizes, supersonic and futuristic types, two helicopters) and the helicopter rotor, 8 directions each, white with company-colour tails, bellies, cheatlines or bodies; in toyland six toy aircraft and a toy rotor replace 3741–3788 and 3901–3904 (see *Vehicles*) |
+| 2040–2044, 3073–3089, 3701–3740, 4748–4762 | effects: crash smoke, diesel exhaust, steam puffs, electric sparks, power station chimney plume (8-frame loop), large and small explosions (fireball, shards, rising smoke), breakdown smoke (4-frame loop), toyland soap bubbles (float, emerge, burst, absorbed) as translucent low-poly puff clusters (see *Effects and disasters*) |
+| 3905–3923, 1416–1419 | disasters: zeppelin (flying, crashing in flames, burnt-out wreck), small UFO (lights blinking), large UFO, UFO-destroyer transport, combat jet and attack helicopter (each also firing), small and large submarine in 4 directions; road-works bulldozer in 4 directions |
 
 Every sprite ships as 8bpp fallback plus 32bpp at 1x, 2x and 4x.
 
@@ -124,6 +126,8 @@ $B -b --factory-startup -P blender/render_airports.py -- render/airports   # [--
 .venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfx1_base.grf 3741 3904 ref/aircraft         # reference only
 .venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfxt_toyland.grf 341 392 ref/aircraft_toyland  # toyland 0xE9D-0xECC, rotors
 $B -b --factory-startup -P blender/render_vehicles.py -- render/vehicles   # [--only tanker,jumbo,rotor0] [--zooms 4 --dirs 3,6]
+$B -b --factory-startup -P blender/render_effects.py -- render/effects     # [--only steam,explosion] [--zooms 4]
+.venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfx1_base.grf 3701 3740 ref/effects   # reference only (also 2040-2044, 3073-3089, 3905-3923, 4748-4762)
 .venv/bin/python tools/preview_vehicles.py render /tmp/ships.png 4   # placed as in game, next to OpenGFX
 .venv/bin/python tools/check_calibration.py render/ground ref/ground
 .venv/bin/python tools/preview_tiling.py render/ground ref/ground render/preview_rocky_area.png rocky 2 12   # big area, variants as in game
@@ -168,6 +172,8 @@ tools/ship_shot.sh ships_4x          # ShipTest digs a pond with a depot and buo
 CLIMATE=toyland tools/ship_shot.sh toyland_ships_4x
 tools/aircraft_shot.sh aircraft_4x   # AircraftTest: two airports, helistation, heliport, every aircraft (2060, never expire)
 CLIMATE=toyland tools/aircraft_shot.sh toyland_aircraft_4x              # YEAR=1960 for an earlier mix
+OTTD=<patched build> tools/fx_shot.sh fx_4x   # FxTest: trains, crashes, buses, airport, industries; disasters every 5 days
+CLIMATE=toyland OTTD=<patched build> tools/fx_shot.sh toyland_fx_4x     # needs a build with tools/disaster_test.patch
 ```
 
 Most render scripts take `--only prefix,prefix` to re-render a subset.
@@ -417,6 +423,52 @@ so both helicopters carry their mast on the vehicle position and the rotor plane
 same height (`HM` in `aircraft.py`). The renderer builds rotors in the body's frame
 (type `rotor`, origin (-1, -1, 5), one direction); the packer composes each turning
 frame from faded blades over a faint disc (`rotor_disc`) with the hub on top.
+
+## Effects and disasters
+
+Effect vehicles (`effectvehicle.cpp`) have the bounds origin 0, so their sprite origin is the
+effect position itself. `blender/render_effects.py` builds every frame as a cluster of low-poly
+lobes with translucent toon materials (the emission of `style.py` mixed with a transparent
+shader by the material's alpha) and renders it with that point at the canvas anchor; the
+packer crops each frame and offsets it from that point.
+
+| sprites | effect | game timing (ticks per frame) | drawing |
+|---|---|---|---|
+| 3079–3083 | steam (steam engines) | 16, rising 1 unit / 8 ticks | white puff growing from 5 to 15 px, fading |
+| 3073–3078 | diesel exhaust | 8, rising 1 unit / 4 ticks | small grey puff, 3 to 9 px |
+| 3084–3089 | electric spark | 3 | blue-white flash with rays, then flying sparks; drawn 3 units above the effect point, at the contact wire |
+| 2040–2044 | crash smoke, aircraft breakdown, copper mine | 16, rising 1 unit / 4 ticks | dark puff, lighter and thinner as it grows |
+| 3737–3740 | breakdown smoke | 8, looped | column of dark puffs; every frame moves each puff one step up the column, so the loop is seamless |
+| 3701–3708 | power station chimney | 8, looped | white plume drifting up and east from the chimney top, 8 puffs, same looping |
+| 3709–3724 | large explosion | 4 | fireball flaring up (white core, yellow and orange lobes), burning out red while shards fly out and fall, then dark smoke rising and thinning out |
+| 3725–3736 | small explosion | 4 | the same at about half the size |
+| 4748–4762 | toyland bubbles | 4 | translucent soap bubble with highlights: floating (3 wobble frames), emerging from the spring (4), bursting into droplets (3), drawn down into the catcher (5) |
+
+The game spawns steam, diesel smoke and sparks at the vehicle centre, 10 units above it
+(`ShowVisualEffect`, effect offset 0 for the original engines). A sprite cannot know the
+direction, so steam appears a few units behind a chimney near the front of an engine, which
+reads as steam trailing the moving engine.
+
+Disaster vehicles (`blender/disasters.py`) have the aircraft bounds origin (-1, -1) and are
+rendered with the vehicle renderer (type `disaster`). The game draws one sprite per disaster
+vehicle in every direction (`_disaster_images`), so each model is rendered in the direction it
+flies: zeppelin SE, combat jet NE, attack helicopter and UFO destroyer SW, the round UFOs
+without direction; only the submarines have four sprites (NE, SE, SW, NW). The crashing
+zeppelin is pitched nose down with its tail burning, the crashed one is a flattened wreck with
+the bare girder rings of the burnt tail on scorched ground. The small UFO alternates with a
+darker sprite (lights off), the jet and helicopter with a firing sprite. The attack
+helicopter uses the aircraft rotor (3902–3904), so its mast top is at `HM` like the other
+helicopters. Disaster shadows are the same sprites drawn with the transparent palette on the
+ground, as for aircraft, so they follow the new silhouettes. The road-works bulldozer
+(1416–1419, `EV_BULLDOZER`) is an effect vehicle and uses type `effect` (origin 0).
+
+Toyland's base graphics replace none of these sprites, so they need no climate block.
+
+Disasters cannot be started on demand in an unmodified game. `tools/disaster_test.patch` adds
+a test hook to `disaster_vehicle.cpp` (environment `OTTD_FX_DISASTERS="0,1,4"` runs these
+disasters in turn whatever the year, `OTTD_FX_DISASTER_DAYS=n` the days between them); build
+OpenTTD with it in a separate tree and pass that binary to `tools/fx_shot.sh` as `OTTD`. The
+patch is for testing only and is not applied to this branch's sources.
 
 ## Trees
 
