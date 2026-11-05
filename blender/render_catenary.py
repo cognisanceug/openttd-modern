@@ -1,6 +1,6 @@
-"""Render rail catenary (CATENARY 0-35) and tram overhead wires (TRAMWAY 56-75, 84-94).
+"""Render rail catenary (CATENARY 0-35) and tram overhead wires (TRAMWAY 56-75, 80-83, 84-94).
 
-Run:  Blender -b --factory-startup -P render_catenary.py -- <outdir>
+Run:  Blender -b --factory-startup -P render_catenary.py -- <outdir> [--only prefix,prefix]
 
 Rail (see table/elrail_data.h and elrail.cpp):
   wires 0-27   drawn at their bounding-box origin: X wires at (0, 7, 10), Y at (7, 0, 10),
@@ -183,14 +183,69 @@ def tram_poles(g, arms, which):
         g.strut(f"band{c}", (x, y, base + 12.5), (x, y, base + 14), 0.75, CC, cc=True)
 
 
+OPPOSITE = {"NE": "SW", "SW": "NE", "NW": "SE", "SE": "NW"}
+# Corner a curve between two adjacent arms bends around (tile units), as in make_infra_textures.tram_paths.
+CURVE_CENTRE = {frozenset(("NW", "NE")): (0, 0), frozenset(("NE", "SE")): (0, 16),
+                frozenset(("SE", "SW")): (16, 16), frozenset(("SW", "NW")): (16, 0)}
+
+
+def tram_paths(arms, steps=12):
+    """Track centre lines in tile units, matching the tram track textures: straights and quarter arcs.
+
+    Dead ends get no sprite of their own: the game draws the straight wire there.
+    """
+    paths, arms = [], list(arms)
+    for a in arms:
+        b = OPPOSITE[a]
+        if b in arms and arms.index(a) < arms.index(b):
+            paths.append([MID[a], MID[b]])
+    if len(arms) < 4:
+        for i, a in enumerate(arms):
+            for b in arms[i + 1:]:
+                c = CURVE_CENTRE.get(frozenset((a, b)))
+                if c is None:
+                    continue
+                a0 = math.atan2(MID[a][1] - c[1], MID[a][0] - c[0])
+                a1 = math.atan2(MID[b][1] - c[1], MID[b][0] - c[0])
+                if abs(a1 - a0) > math.pi:
+                    a1 += 2 * math.pi * (1 if a1 < a0 else -1)
+                paths.append([(c[0] + 8 * math.cos(a0 + (a1 - a0) * i / steps),
+                               c[1] + 8 * math.sin(a0 + (a1 - a0) * i / steps)) for i in range(steps + 1)])
+    return paths
+
+
 def tram_wires(g, arms):
     for a in arms:
         c1, c2 = (CORNER[c] for c in ARM_POLES[a])
         g.wire(f"span{a}", [(c1[0], c1[1], g.z_at(*c1) + 15), (c2[0], c2[1], g.z_at(*c2) + 15)], w=0.18)
-        m = MID[a]
-        steps = 6
-        pts = [(8 + (m[0] - 8) * i / steps, 8 + (m[1] - 8) * i / steps) for i in range(steps + 1)]
-        g.wire(f"contact{a}", [(x, y, g.z_at(x, y) + WIRE_Z) for x, y in pts])
+    for i, path in enumerate(tram_paths(arms)):
+        g.wire(f"contact{i}", [(x, y, g.z_at(x, y) + WIRE_Z) for x, y in path])
+        if len(path) > 2:
+            # Pull-off from the pole on the inside of the curve to the middle of the arc.
+            mx, my = path[len(path) // 2]
+            cx, cy = min(CORNER.values(), key=lambda c: math.hypot(c[0] - mx, c[1] - my))
+            g.wire(f"pull{i}", [(cx, cy, g.z_at(cx, cy) + WIRE_Z + 0.6), (mx, my, g.z_at(mx, my) + WIRE_Z + 0.2)], w=0.14)
+
+
+# Tunnel wires (TRAMWAY 80-83, tunnel direction NE, SE, SW, NW): the tile rises one level towards the
+# portal at the tile centre (render_tunnels.py); the wire runs from the outer edge into the arch,
+# dropping below its crown (7.2 units above the road), and hangs from a bracket in the portal.
+TUNNEL_INTO = ((-1, 0), (0, 1), (1, 0), (0, -1))
+
+
+def tram_tunnel_wire(g, d):
+    ux, uy = TUNNEL_INTO[d]
+    at = lambda u: (8 + ux * u, 8 + uy * u)  # noqa: E731
+    ground = lambda u: (u + 8) / 2  # noqa: E731
+    steps = 8
+    pts = []
+    for i in range(steps + 1):
+        u = -8 + 7.4 * i / steps
+        h = WIRE_Z + (6.2 - WIRE_Z) * (i / steps) ** 1.5
+        pts.append(at(u) + (ground(u) + h,))
+    g.wire("contact", pts)
+    end = pts[-1]
+    g.strut("bracket", end, (end[0], end[1], ground(-0.6) + 8.4), 0.25, STEEL)
 
 
 def build(name, cc_pass):
@@ -204,6 +259,9 @@ def build(name, cc_pass):
         else:
             g = G((0, 0, 0), cc_pass)
             rail_pylon(g, PYLON_ARMS[k - 28])
+        return
+    if 80 <= k <= 83:
+        tram_tunnel_wire(G((0, 0, 0), cc_pass), k - 80)
         return
     # Tram: front 56-67 (+ sloped 72-75), back 84-94 (+ sloped 68-71).
     if 68 <= k <= 75:
@@ -223,7 +281,7 @@ def build(name, cc_pass):
 
 def names():
     out = [f"rail_{k}" for k in range(36)]
-    out += [f"tram_{k}" for k in list(SHAPES) + list(BACK) + list(range(68, 76))]
+    out += [f"tram_{k}" for k in list(SHAPES) + list(BACK) + list(range(68, 76)) + list(range(80, 84))]
     return out
 
 
@@ -232,7 +290,10 @@ def main():
     outdir = argv[0] if argv else os.path.join(os.getcwd(), "render", "catenary")
     for zoom in ZOOMS:
         os.makedirs(os.path.join(outdir, f"z{zoom}"), exist_ok=True)
+    only = tuple(argv[argv.index("--only") + 1].split(",")) if "--only" in argv else None
     for name in names():
+        if only and not name.startswith(only):
+            continue
         for zoom in ZOOMS:
             for cc_pass in (False, True):
                 bpy.ops.wm.read_factory_settings(use_empty=True)

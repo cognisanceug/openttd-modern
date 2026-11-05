@@ -115,7 +115,9 @@ def parse_args():
     outdir = argv[0] if argv else os.path.join(os.getcwd(), "render", "ground")
     style = argv[argv.index("--style") + 1] if "--style" in argv else "modern"
     kinds = argv[argv.index("--kinds") + 1].split(",") if "--kinds" in argv else list(KINDS) + list(WATER_KINDS)
-    return outdir, style, kinds
+    # --only a,b: render only sprites whose name starts with one of these prefixes
+    only = tuple(argv[argv.index("--only") + 1].split(",")) if "--only" in argv else None
+    return outdir, style, kinds, only
 
 
 def jobs(kinds):
@@ -442,12 +444,14 @@ def render(scene, path):
 
 
 def main():
-    outdir, style, kinds = parse_args()
+    outdir, style, kinds, only = parse_args()
     for zoom in ZOOMS:
         os.makedirs(os.path.join(outdir, f"z{zoom}"), exist_ok=True)
 
     masks = {}  # (slope, zoom) -> first rendered mask path; masks only depend on the slope
     for sprite, slope, kind, seed in jobs(kinds):
+        if only and not str(sprite).startswith(only):
+            continue
         if kind == "coastrocks":
             for zoom in ZOOMS:
                 render_coast_rocks(outdir, sprite, slope, seed, zoom)

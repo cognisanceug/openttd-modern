@@ -20,7 +20,7 @@ Currently covered (temperate):
 | Action 5 `AQUEDUCTS` | aqueducts: stone trough with water on arched spandrels, abutments on the slope, piers |
 | 4070–4075 | ship depot: boathouse over two water tiles with gable roof, windows, company-colour eaves band |
 | 990–1003, Action 5 `FOUNDATIONS_SLOPES_HALFTILES` | all foundations: leveled, inclined, halftile; stone walls, coping on back edges |
-| 1005–1036 | rails: straight, short pieces, cross, junction grounds and single overlays, 12 slopes, double pieces |
+| 1005–1036 | rails: straight, short pieces, cross, junction grounds (ballast beds of the tracks a junction can hold, grass in the corners) and single overlays, 12 slopes, double pieces |
 | 1063–1068, 1408–1413 | rail and road depots (shed with gable roof, garage with roller door); company-colour eaves band via recolour mask |
 | 1275–1290, Action 5 `PRE_SIGNAL_SEMAPHORE_PBS` | all signals: light and semaphore; block, entry, exit, combo, path, one-way path; 8 directions, red/green |
 | 2634      | concrete (road depot floor, airport apron) |
@@ -29,12 +29,14 @@ Currently covered (temperate):
 | 2692–2723 | bus and truck bays: floors, bus shelter, stop sign, warehouse with roller doors, fences |
 | Action 5 `ROAD_STOPS`, `ROAD_WAYPOINTS`, `OTTD_GUI` 78–81 | drive-through stops, road waypoints, rail waypoints |
 | Action 5 `CATENARY` 0–35 | electrified rail: wires (flat, up, down, depot entrances) and pylons |
-| Action 5 `TRAMWAY` 4–45, 56–75, 84–94 | tram tracks on roads and on their own (grassed track), overhead wires and poles with company colour |
+| Action 5 `TRAMWAY` 4–45, 56–75, 84–94 | tram tracks on roads and on their own (grassed track), overhead wires and poles with company colour; contact wires follow curves, the dead-end loop fits inside the road stub |
+| Action 5 `TRAMWAY` 23–26, 49–54, 80–83, 95–118 | tram stops (drive-through parts), tram depot (hall with gable roof and open gate; the track overlay runs inside), wires into tunnels, wires on bridges, tram track on bridge decks without road. Vanilla OpenTTD has no trams, so these are checked with `tools/preview_tiles.py` only |
 | 2365–2372, 2389–2396 | rail and road tunnel portals: stone portal with round arch under a grassy mound |
 | 1301–1308 | track fences: low-poly post-and-rail, flat, diagonal and sloped |
 | 1313–1350 | roads with pavements (towns) and with grass verges: 19 shapes each incl. slopes and dead ends |
 | 1370–1381 | level crossings, open and barred |
 | 1420–1575, 4404–4417 | all 31 temperate town houses (52 variants incl. the 2×2 stadiums and shopping mall and the 1×2 hotel), with their grounds (lawn with hedge and path, paving, construction site, pitches) and construction stages (foundations, walls with scaffolding); recolourable facades keep their `PALETTE_TO_STRUCT_*` variants via a structure recolour mask; the office block lift (1443) |
+| Action 5 `ONE_WAY_ROAD` | one-way markers: a white arrow in each lane (no-entry bars when both directions are closed), flat and on inclined roads |
 | 1576–1715 | all 20 temperate tree bases × 7 growth stages (17 species; 0x6AD repeats the spruce like OpenGFX) |
 
 Every sprite ships as 8bpp fallback plus 32bpp at 1x, 2x and 4x.
@@ -87,6 +89,8 @@ $B -b --factory-startup -P blender/render_bridges.py -- render/bridges   # needs
 $B -b --factory-startup -P blender/render_houses.py -- render/houses     # --part k/n splits it over processes
 $B -b --factory-startup -P blender/render_canals.py -- render/canals     # locks and ship depots
 $B -b --factory-startup -P blender/render_aqueducts.py -- render/aqueducts
+.venv/bin/python tools/make_transport_textures.py render/textures render/textures/infra   # tram decks, ...
+$B -b --factory-startup -P blender/render_infra_extra.py -- render/ground   # sprites from those textures
 .venv/bin/python tools/check_calibration.py render/ground ref/ground
 .venv/bin/python tools/preview_tiling.py render/ground ref/ground render/preview_rocky_area.png rocky 2 12   # big area, variants as in game
 .venv/bin/python tools/pack_grf.py render ref/ground nml
@@ -101,10 +105,17 @@ SEED=1 tools/ingame_shot.sh modern rocks_4x keep  # leaves the window open
 SEED=2 tools/ingame_shot.sh water coast_4x        # high sea level: coast and coast rocks
 SEED=2 tools/ingame_shot.sh town town_4x          # many towns (start year 2000): houses, foundations, and a river
 SEED=1 tools/water_shot.sh canals_4x            # WaterTest builds a canal ring, two ship depots, four locks and an aqueduct
-SEED=1 SIZE="4800 3200" tools/infra_shot.sh infra_4x   # InfraTest builds rails, roads, crossings, signals, depots, bridges, tunnels, stations, electrifies (start year 2000)
+SEED=1 SIZE="4800 3200" tools/infra_shot.sh infra_4x   # InfraTest builds rails, roads, one-way roads, crossings, signals, depots, bridges, tunnels, stations, electrifies (start year 2000)
 SEED=3 tools/ingame_shot.sh arctic arctic_4x     # snow; tropic: desert
 LOAD="$PWD/test-home/terrain_test.sav" ZOOM=2 tools/ingame_shot.sh modern terrain_2x   # 2x sprites
 SEED=5 tools/terrain_shot.sh terrain_4x   # TerrainTest funds farms and clears a row of land every 8 days: fields, fences, bare soil -> grass (~3 min)
+```
+
+Most render scripts take `--only prefix,prefix` to re-render a subset.
+Parts the game cannot show (trams) are checked by composing renders:
+
+```sh
+.venv/bin/python tools/preview_tiles.py render /tmp/trams.png 4 "ground:road1321+overlay:tram12+cat:tram_92+cat:tram_65"
 ```
 
 ## Style
