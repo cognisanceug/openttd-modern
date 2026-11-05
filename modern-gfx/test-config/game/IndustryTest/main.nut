@@ -67,31 +67,40 @@ function IndustryTest::Start()
 			slots.append([cx + dx, cy + dy]);
 		}
 	}
-	/* Farms spread fields over their neighbours, so they go to the last slot; banks only into towns. */
+	/* Farms spread fields over their neighbours, so they go to the last slot; banks and water
+	 * towers only into towns, toy shops next to one. Works in every climate. */
 	local types = [];
 	local farm = null;
-	local bank = null;
+	local town_types = [];
 	foreach (type, _ in GSIndustryTypeList()) {
 		if (!GSIndustryType.CanBuildIndustry(type) && !GSIndustryType.CanProspectIndustry(type)) continue;
 		local name = GSIndustryType.GetName(type);
 		if (name.find("Oil Rig") != null) continue;
-		if (name.find("Bank") != null) {
-			bank = type;
-		} else if (name.find("Farm") != null) {
+		if (name.find("Bank") != null || name.find("Water Tower") != null || name.find("Toy Shop") != null) {
+			town_types.append(type);
+		} else if (name == "Farm") {
 			farm = type;
 		} else {
 			types.append(type);
 		}
 	}
-	if (bank != null) PlaceIndustry(bank, cx - 2, cy + 8, 6);
+	foreach (type in town_types) PlaceIndustry(type, cx - 2, cy + 8, 8);
 	/* First wave: complete when the shot is taken. */
 	local next = 0;
 	foreach (type in types) {
 		if (next >= slots.len() - 1) break;
 		local s = slots[next++];
-		PlaceIndustry(type, s[0], s[1], 5);
+		PlaceIndustry(type, s[0], s[1], 8);
 	}
 	if (farm != null) PlaceIndustry(farm, slots.top()[0], slots.top()[1], 3);
+	/* Types that found no site (zones, snow line, flat land): search wider around the map centre. */
+	foreach (type in types) {
+		if (GSIndustryList().Count() == 0) break;
+		local list = GSIndustryList();
+		list.Valuate(GSIndustry.GetIndustryType);
+		list.KeepValue(type);
+		if (list.Count() == 0) PlaceIndustry(type, cx + 15, cy + 25, 30);
+	}
 	/* Construction stages: the third autosave comes at about day 80; a stage takes 4 tile
 	 * loops of 256 ticks. Build the second wave in three groups aged ~36, ~21 and ~9 days. */
 	local wave2 = [];

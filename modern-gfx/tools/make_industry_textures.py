@@ -98,6 +98,36 @@ def main():
     ore = speckle(ore, rng, 0.02, (104, 62, 48), 2)
     save(ore, outdir, "ore")
 
+    # Other climates; drawn after the temperate ones so those keep their random streams.
+    f = noise(size, 4, rng)
+    dirt = colorize(f, [(0.0, (150, 124, 92)), (0.5, (176, 150, 112)), (1.0, (196, 174, 134))])
+    dirt = speckle(dirt, rng, 0.02, (128, 108, 84), 2)
+    save(dirt, outdir, "dirt")
+
+    f = noise(size, 4, rng)
+    mud = colorize(f, [(0.0, (98, 72, 52)), (0.5, (120, 90, 64)), (1.0, (138, 108, 78))])
+    mud = speckle(mud, rng, 0.02, (86, 108, 62), 3)
+    save(mud, outdir, "mud")
+
+    # Plantation: rows of soil along x with grass between, four rows per tile so they continue across tiles.
+    f = noise(size, 5, rng)
+    grass = colorize(f, [(0.0, (104, 150, 70)), (1.0, (132, 176, 86))])
+    soil = colorize(f, [(0.0, (132, 96, 66)), (1.0, (156, 118, 82))])
+    y = np.arange(size)[:, None] * 4 / size
+    row = (np.abs(y - np.floor(y) - 0.5) < 0.22)[..., None]
+    save(np.where(row, soil, grass), outdir, "plantation")
+
+    f = noise(size, 4, rng, octaves=3)
+    candy = colorize(f, [(0.0, (226, 188, 214)), (1.0, (240, 210, 228))])
+    candy = speckle(candy, rng, 0.01, (250, 236, 244), 2)
+    save(candy, outdir, "candy")
+
+    f = noise(size, 6, rng, octaves=3)
+    toy = colorize(f, [(0.0, (70, 104, 160)), (1.0, (88, 124, 182))])
+    toy[::q, :] = toy[::q, :] * 0.8
+    toy[:, ::q] = toy[:, ::q] * 0.8
+    save(toy, outdir, "toyfloor")
+
 
 if __name__ == "__main__":
     main()
