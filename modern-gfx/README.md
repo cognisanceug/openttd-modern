@@ -9,12 +9,12 @@ Currently covered (temperate):
 | Sprites   | Content |
 |-----------|---------|
 | 3924–4060 | ground: bare soil, 1/3 and 2/3 grass, grass, rough land (+4 flat variants), two rocky sets |
-| 4061      | open water (sea, lakes, flat rivers) |
+| 4061      | open water (sea, lakes) |
 | Action 5 `COAST_TILES_DIAGONAL` | all 18 shore shapes: water, foam line, beach, meadow by height |
-| Action 5 `CANALS` 0–3 | river slopes |
+| Action 5 `CANALS` 0–3 | river slopes – not visible yet: OpenGFX draws rivers through its own canal feature, which takes precedence |
 | Action 5 `OVERLAY_ROCKS` 95–113 | rocks on water and coast |
-| 1597–1603 | conifer, 7 growth stages (replaces OpenGFX 0x63D) |
-| 1604–1610 | deciduous tree, 7 growth stages (replaces OpenGFX 0x644) |
+| 990–1003, Action 5 `FOUNDATIONS_SLOPES_HALFTILES` | all foundations: leveled, inclined, halftile; stone walls, coping on back edges |
+| 1576–1715 | all 20 temperate tree bases × 7 growth stages (17 species; 0x6AD repeats the spruce like OpenGFX) |
 
 Every sprite ships as 8bpp fallback plus 32bpp at 1x, 2x and 4x.
 
@@ -41,13 +41,15 @@ B=/Applications/Blender.app/Contents/MacOS/Blender
 # reference data from OpenGFX (offsets, sizes, masks)
 tar -xf ~/Documents/OpenTTD/baseset/opengfx-8.0.tar -C ref
 .venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfx1_base.grf 3924 4060 ref/ground
+.venv/bin/python tools/grf_extract.py ref/opengfx-8.0/ogfx1_base.grf 1576 1715 ref/trees
 
 # textures, renders, checks, GRF
 .venv/bin/python tools/make_ground_textures.py render/textures
 $B -b --factory-startup -P blender/render_ground.py -- render/ground
 $B -b --factory-startup -P blender/render_trees.py -- render/trees
+$B -b --factory-startup -P blender/render_foundations.py -- render/foundations
 .venv/bin/python tools/check_calibration.py render/ground ref/ground
-.venv/bin/python tools/pack_grf.py render/ground ref/ground render/trees nml
+.venv/bin/python tools/pack_grf.py render/ground ref/ground render/trees render/foundations nml
 ```
 
 The result is `nml/modern_terrain.grf`. To check it in game without touching
@@ -57,6 +59,7 @@ your own OpenTTD config (needs the game built in `../build`):
 SEED=5 tools/ingame_shot.sh modern trees_4x       # -> shots/trees_4x.png
 SEED=1 tools/ingame_shot.sh modern rocks_4x keep  # leaves the window open
 SEED=2 tools/ingame_shot.sh water coast_4x        # high sea level: coast and coast rocks
+SEED=2 tools/ingame_shot.sh town town_4x          # many towns: foundations, and a river
 ```
 
 ## Style

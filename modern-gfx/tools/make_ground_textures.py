@@ -11,6 +11,7 @@ meets its neighbours without a seam. Colours follow the map study:
   rocky    meadow with gravel patches (low-poly boulders are added in Blender)
   water    the study's mid-depth water blue, nearly uniform
   sand     beach sand #E2D098 for the shores
+  stone    dressed stone courses for foundation walls (U per tile, V per height level)
 The grass-growth stages share one coverage field, so grass regrows in place.
 Low-frequency variation stays gentle because one sprite repeats on every tile.
 
@@ -35,6 +36,8 @@ WATER = (64, 142, 174)
 WATER_DEEP = (48, 118, 156)
 SAND = (226, 208, 152)
 SAND_DARK = (208, 188, 134)
+STONE = (190, 178, 154)
+MORTAR = (146, 136, 116)
 
 
 def periodic_noise(size, freq, rng):
@@ -173,6 +176,29 @@ def main():
         return [v * g for v in c]
 
     save(sand, size, os.path.join(outdir, "sand.png"))
+
+    # Foundation walls: dressed stone courses. U repeats once per tile along the
+    # wall, V once per height level (three courses), see style.wall_material().
+    rng5 = random.Random(1357)
+    stone_n = periodic_noise(size, 30, rng5)
+    courses, blocks = 3, 5
+    shades = [[rng5.uniform(-0.07, 0.07) for _ in range(blocks)] for _ in range(courses)]
+
+    def stone(x, y):
+        v = y / size * courses
+        row = int(v)
+        u = x / size * blocks + (0.5 if row % 2 else 0.0)
+        col = int(u) % blocks
+        fv, fu = v - row, u - int(u)
+        mortar = fv < 0.07 or fu < 0.035
+        if mortar:
+            return list(MORTAR)
+        c = [s * (1 + shades[row][col]) for s in STONE]
+        g = 1.0 + (stone_n[y][x] - 0.5) * 0.08
+        edge = 1.0 - 0.08 * smoothstep(0.75, 1.0, fv)
+        return [v_ * g * edge for v_ in c]
+
+    save(stone, size, os.path.join(outdir, "stone.png"))
 
 
 if __name__ == "__main__":

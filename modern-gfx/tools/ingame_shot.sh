@@ -1,8 +1,9 @@
 #!/bin/sh
 # Start OpenTTD in an isolated test home, take one screenshot and quit.
-# Usage: [SEED=n] [SHOT=big|normal] [SIZE="w h"] ingame_shot.sh <modern|base|water> <name> [keep]
+# Usage: [SEED=n] [SHOT=big|normal] [SIZE="w h"] ingame_shot.sh <modern|base|water|town> <name> [keep]
 #   modern  OpenGFX plus nml/modern_terrain.grf      base  OpenGFX only
 #   water   like modern, with a high sea level so coasts and rivers show up
+#   town    like modern, with many towns: houses and roads on slopes show foundations
 #   SHOT=big renders at the max zoom-in (4x), SHOT=normal always at 1x.
 #   The view cannot be scrolled from the start script (the viewport is placed
 #   afterwards), so pick the map with SEED instead (5: trees, 1: rocks).
