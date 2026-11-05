@@ -165,8 +165,8 @@ def main():
     os.makedirs(lang_dir, exist_ok=True)
     open(os.path.join(lang_dir, "english.lng"), "w").write(
         "##grflangid 0x01\n"
-        "STR_GUI_GRF_NAME :Modern Interface\n"
-        "STR_GUI_GRF_DESC :Interface graphics matching Modern Terrain: the title screen logo, toolbar, build menu and window icons and cursors. Licence: GPL v2.\n"
+        "STR_GUI_GRF_NAME :ModernGFX Interface\n"
+        "STR_GUI_GRF_DESC :Interface graphics matching ModernGFX: the title screen logo, toolbar, build menu and window icons and cursors. Licence: GPL v2.\n"
     )
     nmlc = os.path.join(os.path.dirname(sys.executable), "nmlc")
     subprocess.run([nmlc, "-c", "--lang-dir", "lang_gui", "--grf", "modern_gui.grf", "modern_gui.nml"],

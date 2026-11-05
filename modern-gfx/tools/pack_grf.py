@@ -769,8 +769,8 @@ def main():
     os.makedirs(os.path.join(nml_dir, "lang"), exist_ok=True)
     open(os.path.join(nml_dir, "lang", "english.lng"), "w").write(
         "##grflangid 0x01\n"
-        "STR_GRF_NAME :Modern Terrain\n"
-        "STR_GRF_DESC :32bpp temperate ground, water and shores, foundations, trees, transport infrastructure and town houses rendered in Blender. Licence: GPL v2.\n"
+        "STR_GRF_NAME :ModernGFX\n"
+        "STR_GRF_DESC :Modern low-poly 32bpp graphics rendered in Blender, in every climate: terrain, water, trees, transport infrastructure, airports and docks, towns, industries and vehicles. Licence: GPL v2.\n"
     )
     nmlc = os.path.join(os.path.dirname(sys.executable), "nmlc")
     subprocess.run([nmlc, "-c", "--grf", "modern_terrain.grf", "modern_terrain.nml"], cwd=nml_dir, check=True)

@@ -1,10 +1,10 @@
-# Modern Terrain – 32bpp graphics for OpenTTD
+# ModernGFX – 32bpp graphics for OpenTTD
 
 A NewGRF that replaces OpenGFX sprites with 32bpp graphics rendered in Blender,
 in the style of the "Schienenwerk" map study: isometric low-poly look, soft
 light without hard shadows. Gameplay is unchanged. Licence: GPL v2.
 
-Currently covered (temperate; trees in all climates):
+Currently covered (all climates unless noted; trains and road vehicles still OpenGFX):
 
 | Sprites   | Content |
 |-----------|---------|
@@ -459,8 +459,8 @@ check boxes), cargo icons and small status icons. Each keeps the size and
 offset of its OpenGFX original, so layouts and cursor hotspots stay put.
 In the modern style the toolbar's red separators are
 dark slate. The title game tries
-`baseset/opntitle_modern.dat` first, a town scene that needs Modern Terrain
-and Modern Interface enabled for new games; without them the default
+`baseset/opntitle_modern.dat` first, a town scene that needs ModernGFX
+and ModernGFX Interface enabled for new games; without them the default
 `opntitle.dat` is shown.
 
 ```sh
