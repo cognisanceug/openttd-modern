@@ -26,6 +26,8 @@ Water kinds (output files are named after the sprite slot, not a base sprite):
   riverbank bank0-59 river edges for our own canal-feature definition: 12 pieces
            (sides NE, SE, SW, NW; outer and inner corners E, S, W, N) for flat
            river tiles and for the slopes SE, NE, SW, NW (offsets 0/12/24/36/48)
+  canaldike dike0-11 canal edges (stone quay) for our own canal-feature definition,
+           same 12 pieces as the river banks, flat only
 
 Styles: "calibration" is a lit 8x8 checker for checking geometry and seams;
 "modern" uses the textures from tools/make_ground_textures.py (render/textures)
@@ -77,7 +79,7 @@ KINDS.update(FIELD_KINDS)
 # render/desert), as the sprite numbers collide.
 CLIMATE_KINDS = {f"{c}{k}": (4493 + 19 * (k - 1), f"{c}{k}", None) for c in ("snow", "desert") for k in range(1, 5)}
 ROUGH_FLAT_VARIANTS = (4019, 4020, 4021, 4022)
-WATER_KINDS = ("water", "shore", "river", "coastrocks", "riverbank", "infra")
+WATER_KINDS = ("water", "shore", "river", "coastrocks", "riverbank", "canaldike", "infra")
 # Sloped track sprites 1023-1034 (offset from 1011 -> slope), see _track_sloped_sprites.
 RAIL_SLOPES = {12: 8, 13: 4, 14: 1, 15: 2, 16: 14, 17: 7, 18: 11, 19: 13, 20: 12, 21: 6, 22: 3, 23: 9}
 ROAD_SLOPES = {11: 12, 12: 6, 13: 3, 14: 9}  # road sprite offset -> slope NE, SE, SW, NW
@@ -134,6 +136,9 @@ def jobs(kinds):
             continue
         if kind == "riverbank":
             out += [(f"bank{v * 12 + k}", slope, kind, k) for v, slope in enumerate(BANK_SLOPES) for k in range(12)]
+            continue
+        if kind == "canaldike":
+            out += [(f"dike{k}", 0, kind, k) for k in range(12)]
             continue
         if kind == "infra":
             out += [(name, slope, kind, name) for name, slope, _ in infra_jobs()]
@@ -356,6 +361,8 @@ def ground_material(kind, piece=None):
         return st.shore_material(tex("water"), tex("sand"), tex("grass"))
     if kind == "riverbank":
         return st.bank_material(tex(f"riverbank{piece}"))
+    if kind == "canaldike":
+        return st.bank_material(tex(f"canaldike{piece}"))
     if kind == "infra":
         path = os.path.join(TEXTURES, "infra", f"{piece}.png")
         if piece in {n for n, _, overlay in infra_jobs() if overlay}:
